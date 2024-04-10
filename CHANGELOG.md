@@ -2,7 +2,10 @@
 
 All notable changes to this project will be documented in this file, in reverse chronological order by release.
 
-## [0.6.3] - 2023-03-28
+## [0.6.3] - 2023-04-10
+
+### Added
+- Add file CHANGELOG.md
 
 ### Fixed
 - Revert "Fix minijail stuck issue if use pthread_exit() to exit a thread",
