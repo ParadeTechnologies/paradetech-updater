@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file, in reverse chronological order by release.
 
+## [0.6.4] - 2023-05-23
+
+### Fixed
+- Update pttupdater to not requesting hidraw node if only "check_target"
+- Update helper print
+
+### Changed
+- Updater version of ptupdater to 0.6.4
+
 ## [0.6.3] - 2023-04-10
 
 ### Added
@@ -60,6 +69,7 @@ Technologies Touch devices on a Linux host (e.g., Chrome OS). See
 README.md for more information.
 (Note that v0.1.0 to v0.4.0 were internal-only releases.)
 
+[0.6.4]: https://github.com/ParadeTechnologies/paradetech-updater/compare/v0.6.3...v0.6.4
 [0.6.3]: https://github.com/ParadeTechnologies/paradetech-updater/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/ParadeTechnologies/paradetech-updater/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/ParadeTechnologies/paradetech-updater/compare/v0.6.0...v0.6.1
