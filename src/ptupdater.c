@@ -66,7 +66,8 @@ int main(int argc, char **argv)
 	 */
 	_parse_args(argc, argv, &config);
 
-	if (config.hidraw_sysfs_node_file == NULL) {
+	if ((config.check_active || config.update) &&
+	    (config.hidraw_sysfs_node_file == NULL)) {
 		output(FATAL,
 			"Must provide the HIDRAW node path as the first argument.\n");
 		exit(EXIT_FAILURE);
@@ -351,13 +352,8 @@ static void _print_help()
 "Overview:\n"
 "  Parade Technologies Touch Firmware Updater command line tool that checks\n"
 "  and/or updates the firmware that is running on the Parade touch processor.\n"
-"  Firmware updates are embedded in a Parade Touch Updater (PTU) file that\n"
-"  is provided via the '--check-target' or '--update' parameters. The PTU\n"
-"  file is in XML format. PTU files are expected to only ever be constructed\n"
-"  and provided by Parade Technologies so report any issues to\n"
-"  support@paradetech.com. If you are internal to Parade, and are trying to\n"
-"  construct a valid PTU file, then please refer to the PTU wiki page,\n"
-"  including the \"PtUpdater Specifics\" section.\n"
+"  The binary firmware file is provided via the '--check-target' or \n"
+"  '--update' parameters.\n"
 "\n"
 "Options:\n"
 "  -h,  --help                   Prints this message.\n"
@@ -366,7 +362,7 @@ static void _print_help()
 "                                version running on the touch processor.\n"
 "       --check-target FILEPATH  Check and display the target firmware\n"
 "                                version by parsing the header of the binary\n"
-"                                image embedded in the PTU file.\n"
+"                                image.\n"
 "\n"
 "       --i2c-bus      I2C-BUS   The I2C bus of the Parade touch device,\n"
 "                                which is required for using PIP2\n"
@@ -401,11 +397,11 @@ static void _print_help()
 "\n"
 "Examples:\n"
 "\n"
-"  ptupdater /dev/hidraw0 --update /lib/firmware/parade.ptu\n"
+"  ptupdater /dev/hidraw0 --update /lib/firmware/parade.bin\n"
 "\n"
 "  ptupdater /dev/hidraw0 --check-active\n"
 "\n"
-"  ptupdater /dev/hidraw0 --check-target /lib/firmware/parade.ptu\n"
+"  ptupdater /dev/hidraw0 --check-target /lib/firmware/parade.bin\n"
 "\n"
 "\n"
 	);
