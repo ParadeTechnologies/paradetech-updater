@@ -60,7 +60,9 @@ static uint8_t     async_debug_data_mode_seq;
 
 static int _verify_pip3_rsp_report(HID_Report_ID report_id, uint8_t seq,
 		PIP3_Cmd_ID cmd_id, const HID_Input_PIP3_Response* rsp);
+
 int (*send_report_via_channel)(const ReportData* report);
+
 Poll_Status (*get_report_via_channel)(ReportData* report, bool apply_timeout,
 		long double timeout_val);
 
@@ -1545,18 +1547,13 @@ int teardown_pip3_api()
 		return EXIT_SUCCESS;
 	}
 
-	/*
-	 * Save time cost when to check firmware version, and 
-	 * avoid to generate negative result if primary fw is bad.
-	 *
-	 * PIP3_Rsp_Payload_ResumeScanning resume_scanning_rsp;
-	 * int rc = do_pip3_resume_scanning_cmd(0x00, &resume_scanning_rsp);
-	 */
+	PIP3_Rsp_Payload_ResumeScanning resume_scanning_rsp;
+	int rc = do_pip3_resume_scanning_cmd(0x00, &resume_scanning_rsp);
 
 	active_channel->teardown();
 	active_channel = NULL;
 
-	return EXIT_SUCCESS;
+	return rc;
 }
 
 static int _verify_pip3_rsp_report(HID_Report_ID report_id, uint8_t seq,

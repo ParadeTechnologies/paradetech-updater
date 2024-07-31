@@ -447,10 +447,8 @@ typedef struct {
 } __attribute__((packed)) PIP3_Rsp_Payload_Version;
 
 extern int (*send_report_via_channel)(const ReportData* report);
-
-extern Poll_Status (*get_report_via_channel)(ReportData* report, bool apply_timeout,
-		long double timeout_val);
-
+extern Poll_Status (*get_report_via_channel)(ReportData* report,
+		bool apply_timeout, long double timeout_val);
 extern int do_pip3_command(ReportData* cmd, ReportData* rsp);
 extern int do_pip3_calibrate_cmd(uint8_t seq_num, uint8_t calibrate_mode,
 		uint8_t data_0, uint8_t data_1, uint8_t data_2);

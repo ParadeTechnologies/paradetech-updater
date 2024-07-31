@@ -45,7 +45,9 @@ static Poll_Status _get_report_from_i2cdev(ReportData* report,
 		bool apply_timeout, long double timeout_val);
 static int _verify_pip2_response(uint8_t seq, PIP2_Cmd_ID cmd_id,
 		const PIP2_Rsp_Header* rsp);
+
 int (*send_pip2_cmd_via_channel)(const ReportData* report);
+
 Poll_Status (*get_pip2_rsp_via_channel)(ReportData* report, bool apply_timeout,
 		long double timeout_val);
 

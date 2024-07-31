@@ -187,10 +187,8 @@ typedef struct {
 } __attribute__((packed)) PIP2_Rsp_Payload_Status;
 
 extern int (*send_pip2_cmd_via_channel)(const ReportData* report);
-
-extern Poll_Status (*get_pip2_rsp_via_channel)(ReportData* report, bool apply_timeout,
-		long double timeout_val);
-
+extern Poll_Status (*get_pip2_rsp_via_channel)(ReportData* report,
+		bool apply_timeout, long double timeout_val);
 extern int do_pip2_command(ReportData* cmd, ReportData* rsp);
 extern int do_pip2_file_close_cmd(uint8_t seq_num, uint8_t file_handle,
 		PIP2_Rsp_Payload_FileClose* rsp);

@@ -455,8 +455,7 @@ int start_hidraw_report_reader(HID_Report_ID report_id)
 	}
 
 	while (report_reader_thread_status
-			== REPORT_READER_THREAD_STATUS_NOT_STARTED)
-			sleep_ms(1);
+			== REPORT_READER_THREAD_STATUS_NOT_STARTED);
 
 	rc = EXIT_SUCCESS;
 
@@ -476,6 +475,26 @@ int stop_hidraw_report_reader()
 
 	char stop_signal[] = "S";
 	write(self_pipe_fd[SELF_PIPE_WRITE], stop_signal, 2);
+
+	struct timeval start_time;
+	gettimeofday(&start_time, 0);
+	while (!time_limit_reached(&start_time, 5)
+			&& pthread_kill(report_reader_tid, 0) != ESRCH);
+
+	if (pthread_kill(report_reader_tid, 0) != ESRCH) {
+		output(DEBUG, "Terminating the thread reading HIDRAW reports.\n");
+		pthread_kill(report_reader_tid, SIGINT);
+		sleep_ms(1000);
+		if (pthread_kill(report_reader_tid, 0) != ESRCH) {
+			output(WARNING,
+					"The thread reading HIDRAW reports coundn't be interrupted."
+					" Now taking a more forceful approach.\n");
+			pthread_kill(report_reader_tid, SIGKILL);
+		}
+	} else {
+		output(DEBUG,
+				"The thread reading HIDRAW reports has already terminated.\n");
+	}
 
 	pthread_join(report_reader_tid, NULL);
 
@@ -616,7 +635,7 @@ static int _get_max_output_len()
 		return -1;
 	}
 
-	int max_output_len = 0xFF;
+	int max_output_len;
 	uint8_t ping_cmd[HID_MAX_OUTPUT_REPORT_SIZE] = {
 			0x04, 0x06, 0x00, 0x08, 0x00, 0x2A, 0xF0
 	};
