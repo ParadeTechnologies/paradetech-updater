@@ -478,25 +478,22 @@ int stop_hidraw_report_reader()
 
 	struct timeval start_time;
 	gettimeofday(&start_time, 0);
-	while (!time_limit_reached(&start_time, 5)
-			&& pthread_kill(report_reader_tid, 0) != ESRCH);
+	while (!time_limit_reached(&start_time, 5) &&
+	    report_reader_thread_status != REPORT_READER_THREAD_STATUS_EXIT);
 
-	if (pthread_kill(report_reader_tid, 0) != ESRCH) {
-		output(DEBUG, "Terminating the thread reading HIDRAW reports.\n");
-		pthread_kill(report_reader_tid, SIGINT);
-		sleep_ms(1000);
-		if (pthread_kill(report_reader_tid, 0) != ESRCH) {
-			output(WARNING,
-					"The thread reading HIDRAW reports coundn't be interrupted."
-					" Now taking a more forceful approach.\n");
-			pthread_kill(report_reader_tid, SIGKILL);
-		}
-	} else {
+	int rc = 0;
+	rc = pthread_join(report_reader_tid, NULL);
+	if (rc == 0) {
 		output(DEBUG,
-				"The thread reading HIDRAW reports has already terminated.\n");
+			"The thread reading HIDRAW reports is terminated.\n");
+	} else if (rc == ESRCH) {
+		output(DEBUG,
+			"The thread reading HIDRAW reports has already terminated.\n");
+	} else {
+		output(ERROR,
+			"%s: Failed to stop thread reading HIDRAW reports. %s [%d]\n",
+				__func__, strerror(rc), rc);
 	}
-
-	pthread_join(report_reader_tid, NULL);
 
 	for (int i = 0; i < REPORT_BUFFER_SIZE; i++) {
 		free(report_buffer[i].report.data);
