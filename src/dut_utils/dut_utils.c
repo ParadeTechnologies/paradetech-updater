@@ -963,7 +963,6 @@ static int _set_dut_state_tp_fw_scanning()
 	int rc = EXIT_FAILURE;
 	PIP3_Rsp_Payload_ResumeScanning resume_scan_rsp;
 	PIP3_Rsp_Payload_Status status_rsp;
-	PIP3_Rsp_Payload_Version version_rsp;
 	int wait_time_remaining = BOOT_2_SCANNING_MAX_WAIT_MS;
 
 	if (EXIT_SUCCESS != _set_dut_state_tp_fw_exec()) {
