@@ -1538,17 +1538,20 @@ int setup_pip3_api(Channel* channel, HID_Report_ID report_id)
 	return EXIT_SUCCESS;
 }
 
-int teardown_pip3_api()
+int teardown_pip3_api(bool force_scanning)
 {
 	output(DEBUG, "%s: Starting.\n", __func__);
+	int rc = EXIT_SUCCESS;
 
 	if (active_channel == NULL) {
 		output(DEBUG, "API is already inactive.\n");
 		return EXIT_SUCCESS;
 	}
 
-	PIP3_Rsp_Payload_ResumeScanning resume_scanning_rsp;
-	int rc = do_pip3_resume_scanning_cmd(0x00, &resume_scanning_rsp);
+	if (force_scanning) {
+		PIP3_Rsp_Payload_ResumeScanning resume_scanning_rsp;
+		rc = do_pip3_resume_scanning_cmd(0x00, &resume_scanning_rsp);
+	}
 
 	active_channel->teardown();
 	active_channel = NULL;

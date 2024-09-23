@@ -557,7 +557,7 @@ static int _run(const PtUpdater_Config* config)
 
 END:
 	if (EXIT_SUCCESS != teardown_pip2_api()
-			|| EXIT_SUCCESS != teardown_pip3_api()) {
+			|| EXIT_SUCCESS != teardown_pip3_api(config->update)) {
 		rc = EXIT_FAILURE;
 	}
 	return rc;

@@ -491,6 +491,6 @@ extern Poll_Status get_pip3_unsolicited_async_rsp(ReportData* rsp,
 		bool apply_timeout, long double timeout_val);
 extern bool is_pip3_api_active();
 extern int setup_pip3_api(Channel* channel, HID_Report_ID report_id);
-extern int teardown_pip3_api();
+extern int teardown_pip3_api(bool force_scanning);
 
 #endif 
