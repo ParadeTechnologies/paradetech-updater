@@ -38,5 +38,6 @@ extern int set_dut_state(DUT_State target_state);
 extern int write_image_to_dut_flash_file(uint8_t file_num, ByteData* image,
 		const ByteData* file_nums_to_erase,
 		const Flash_Loader_Options* loader_options);
+extern int flash_file_crc(uint8_t file_num, uint32_t offset, uint32_t length, uint16_t* crc);
 
 #endif 

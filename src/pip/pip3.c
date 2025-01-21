@@ -387,6 +387,60 @@ int do_pip3_file_ioctl_erase_file_cmd(uint8_t seq_num, uint8_t file_handle,
 	return do_pip3_command(&cmd, &_rsp);
 }
 
+int do_pip3_file_ioctl_file_crc_cmd(uint8_t seq_num, uint8_t file_handle,
+		uint32_t offset, uint32_t length,
+		PIP3_Rsp_Payload_FileIOCTL_FileCRC* rsp)
+{
+	output(DEBUG, "%s: Starting.\n", __func__);
+
+	if (rsp == NULL) {
+		output(ERROR, "%s: NULL argument provided.\n", __func__);
+		return EXIT_FAILURE;
+	} else if (seq_num > MAX_SEQ_NUM) {
+		output(ERROR,
+				"%s: The sequence number must be less <= 7 (%u was given).\n",
+				__func__, seq_num);
+		return EXIT_FAILURE;
+	}
+
+	uint16_t cmd_payload_len = sizeof(PIP3_Cmd_Payload_FileIOCTL_FileCRC) - 1;
+	PIP3_Cmd_Payload_FileIOCTL_FileCRC cmd_data = {
+			.header = {
+					.report_id          = HID_REPORT_ID_COMMAND,
+					.payload_len_lsb    = cmd_payload_len & 0xFF,
+					.payload_len_msb    = cmd_payload_len >> 8,
+					.seq                = seq_num,
+					.tag                = TAG_BIT,
+					.more_data          = 0,
+					.reserved_section_1 = 0,
+					.cmd_id             = (uint8_t) PIP3_CMD_ID_FILE_IOCTL,
+					.resp               = 0
+			},
+			.file_handle = file_handle,
+			.ioctl_code  = (uint8_t) PIP3_IOCTL_CODE_FILE_CRC,
+			.offset = offset,
+			.length = length,
+	};
+	ReportData cmd = {
+			.data = (uint8_t*) &cmd_data,
+			.len  = sizeof(cmd_data)
+	};
+	uint16_t cmd_crc = calculate_crc16_ccitt(0xFFFF, &(cmd.data[1]),
+			cmd.len - 3);
+	cmd.data[cmd.len - 2] = cmd_crc >> 8;
+	cmd.data[cmd.len - 1] = cmd_crc & 0xFF;
+
+	ReportData _rsp = {
+			.data        = (uint8_t*) rsp,
+			.len         = 0,
+			.index       = 0,
+			.num_records = 0,
+			.max_len     = sizeof(PIP3_Rsp_Payload_FileIOCTL_FileCRC)
+	};
+
+	return do_pip3_command(&cmd, &_rsp);
+}
+
 int do_pip3_file_open_cmd(uint8_t seq_num, uint8_t file_num,
 		PIP3_Rsp_Payload_FileOpen* rsp)
 {

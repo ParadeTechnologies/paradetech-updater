@@ -623,6 +623,69 @@ static int _flash_file_write(uint8_t file_handle, ByteData* data)
 	return rc;
 }
 
+int flash_file_crc(uint8_t file_num, uint32_t offset, uint32_t length, uint16_t* crc)
+{
+	int rc = EXIT_FAILURE;
+	int cmd_rc = EXIT_FAILURE;
+	bool file_open = false;
+	uint8_t file_handle;
+
+	output(DEBUG, "%s: Starting.\n", __func__);
+
+	Flash_Loader_Options loader_options;
+	loader_options.list[0] = FLASH_LOADER_TP_PROGRAMMER_IMAGE;
+	loader_options.list[1] = FLASH_LOADER_NONE;
+	cmd_rc = _enter_flash_loader(&loader_options);
+	if (cmd_rc != EXIT_SUCCESS) {
+		rc = cmd_rc;
+		goto RETURN;
+	}
+
+	cmd_rc = _flash_file_open(file_num, &file_handle);
+	if (cmd_rc != EXIT_SUCCESS) {
+		rc = cmd_rc;
+		goto RETURN;
+	} else {
+		output(DEBUG, "Opened the flash file ID %u.\n", file_num);
+		file_open = true;
+	}
+
+	if (FLASH_LOADER_NONE == active_flash_loader) {
+		output(ERROR, "%s: %s.\n",
+				__func__, FW_LOADER_NAMES[active_flash_loader]);
+		rc = EXIT_FAILURE;
+	} else if (FLASH_LOADER_TP_PROGRAMMER_IMAGE == active_flash_loader
+			|| FLASH_LOADER_AUX_MCU_PROGRAMMER_IMAGE == active_flash_loader) {
+		PIP3_Rsp_Payload_FileIOCTL_FileCRC rsp;
+		rc = do_pip3_file_ioctl_file_crc_cmd(0x00, file_handle, offset, length, &rsp);
+		*crc = rsp.crc_lsb + (rsp.crc_msb << 8);
+	} else if (FLASH_LOADER_PIP2_ROM_BL == active_flash_loader) {
+		PIP2_Rsp_Payload_FileIOCTL_FileCRC rsp;
+		rc = do_pip2_file_ioctl_file_crc_cmd(0x00, file_handle, offset, length, &rsp);
+		*crc = rsp.crc_lsb + (rsp.crc_msb << 8);
+	} else {
+		output(ERROR,
+				"%s: Unexpected/unsupported 'Flash_Loader' enum value (%d).\n",
+				__func__, active_flash_loader);
+		rc = EXIT_FAILURE;
+	}
+
+RETURN:
+	if (file_open) {
+		cmd_rc = _flash_file_close(file_handle);
+		if (cmd_rc != EXIT_SUCCESS) {
+			rc = cmd_rc;
+		}
+	}
+
+	cmd_rc = _exit_flash_loader();
+	if (cmd_rc != EXIT_SUCCESS) {
+		rc = cmd_rc;
+	}
+
+	return rc;
+}
+
 static DUT_State _get_dut_state_from_fw_sys_mode(PIP3_App_Sys_Mode sys_mode)
 {
 	output(DEBUG, "%s: Starting.\n", __func__);

@@ -120,6 +120,22 @@ typedef struct {
 
 typedef struct {
 	PIP2_Cmd_Header header;
+	uint8_t file_handle;
+	uint8_t ioctl_code;
+	uint32_t offset;
+	uint32_t length;
+	PIP2_Cmd_Footer footer;
+} __attribute__((packed)) PIP2_Cmd_Payload_FileIOCTL_FileCRC;
+
+typedef struct {
+	PIP2_Rsp_Header header;
+	uint8_t crc_lsb;
+	uint8_t crc_msb;
+	PIP2_Rsp_Footer footer;
+} __attribute__((packed)) PIP2_Rsp_Payload_FileIOCTL_FileCRC;
+
+typedef struct {
+	PIP2_Cmd_Header header;
 	uint8_t file_num;
 	PIP2_Cmd_Footer footer;
 } __attribute__((packed)) PIP2_Cmd_Payload_FileOpen;
@@ -194,6 +210,8 @@ extern int do_pip2_file_close_cmd(uint8_t seq_num, uint8_t file_handle,
 		PIP2_Rsp_Payload_FileClose* rsp);
 extern int do_pip2_file_ioctl_erase_file_cmd(uint8_t seq_num,
 		uint8_t file_handle, PIP2_Rsp_Payload_FileIOCTL_EraseFile* rsp);
+extern int do_pip2_file_ioctl_file_crc_cmd(uint8_t seq_num, uint8_t file_handle,
+		uint32_t offset, uint32_t length, PIP2_Rsp_Payload_FileIOCTL_FileCRC* rsp);
 extern int do_pip2_file_open_cmd(uint8_t seq_num, uint8_t file_num,
 		PIP2_Rsp_Payload_FileOpen* rsp);
 extern int do_pip2_file_read_cmd(uint8_t seq_num, uint8_t file_handle,
