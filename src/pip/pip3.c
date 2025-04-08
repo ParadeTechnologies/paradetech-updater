@@ -29,6 +29,7 @@ char* PIP3_FW_CATEGORY_NAMES[] = {
 		[PIP3_FW_CATEGORY_ID_TOUCH_FW]      = "Touch Firmware Category",
 		[PIP3_FW_CATEGORY_ID_PROGRAMMER_FW] = "Programmer Firmware Category",
 		[PIP3_FW_CATEGORY_ID_UTILITY_FW]    = "Utility Firmware Category",
+		[PIP3_FW_CATEGORY_ID_BOOTLOADER_FW] = "Bootloader FW Category",
 };
 
 char* PIP3_IMAGE_NAMES[] = {

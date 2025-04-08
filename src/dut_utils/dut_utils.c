@@ -1149,14 +1149,19 @@ static int _set_dut_state_tp_programmer_img()
 	}
 
 	if (EXIT_SUCCESS
-			!= _verify_fw_category(PIP3_FW_CATEGORY_ID_PROGRAMMER_FW)) {
+		== _verify_fw_category(PIP3_FW_CATEGORY_ID_PROGRAMMER_FW)) {
+		active_dut_state = DUT_STATE_TP_FW_PROGRAMMER_IMAGE;
+		output(DEBUG, "Entered the Programmer Image.\n");
+		return EXIT_SUCCESS;
+	} else if (EXIT_SUCCESS
+		== _verify_fw_category(PIP3_FW_CATEGORY_ID_BOOTLOADER_FW)) {
+		active_dut_state = DUT_STATE_TP_FW_PROGRAMMER_IMAGE;
+		output(DEBUG, "Entered the Bootloader FW.\n");
+		return EXIT_SUCCESS;
+	} else {
 		active_dut_state = DUT_STATE_INVALID;
 		return EXIT_FAILURE;
 	}
-
-	active_dut_state = DUT_STATE_TP_FW_PROGRAMMER_IMAGE;
-	output(DEBUG, "Entered the Programmer Image.\n");
-	return EXIT_SUCCESS;
 }
 
 #define VERIFY_ACTIVE_PROCESSOR_INTERVAL_BETWEEN_MSGS_SECS 3
