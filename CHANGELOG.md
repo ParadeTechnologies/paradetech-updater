@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file, in reverse chronological order by release.
 
-## [0.6.5] - 2025-05-23
+## [0.6.5] - 2025-04-21
 
 ### Added
 - Add enum for FW category
