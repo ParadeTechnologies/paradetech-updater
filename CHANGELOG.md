@@ -2,16 +2,31 @@
 
 All notable changes to this project will be documented in this file, in reverse chronological order by release.
 
-## [0.6.4] - 2023-05-23
+## [0.6.5] - 2025-05-23
+
+### Added
+- Add enum for FW category
+- Add support for PIP2 and PIP3 FILE_IOCTL file_crc (ioctl code: 0x04)
+- Add catagory ID for bootloader firmware
+
+### Fixed
+- Fixed typo mistake in CHANGELOG.md
+
+### Changed
+- Revise normal workaround not to use pthread_kill() to detect whether a thread terminates
+- Clean codes in PtLib/dut_utils: remove unused variable version_rsp
+- Update version of ptupdater to 0.6.5
+
+## [0.6.4] - 2024-05-23
 
 ### Fixed
 - Update pttupdater to not requesting hidraw node if only "check_target"
 - Update helper print
 
 ### Changed
-- Updater version of ptupdater to 0.6.4
+- Update version of ptupdater to 0.6.4
 
-## [0.6.3] - 2023-04-10
+## [0.6.3] - 2024-04-10
 
 ### Added
 - Add file CHANGELOG.md
@@ -23,9 +38,9 @@ All notable changes to this project will be documented in this file, in reverse 
  results an error if primary image is broken
 
 ### Changed
-- Updater version of ptupdater to 0.6.3
+- Update version of ptupdater to 0.6.3
 
-## [0.6.2] - 2023-03-26
+## [0.6.2] - 2024-03-26
 
 ### Fixed
 - Fix Makefile to use CFLAGS, CPPFLAGS, LDFLAGS correctly
@@ -37,17 +52,17 @@ All notable changes to this project will be documented in this file, in reverse 
   -  Add initial value for max_output_len in function  _get_max_output_len()
 
 ### Changed
-- Updater version of ptupdater to 0.6.2
+- Update version of ptupdater to 0.6.2
 
-## [0.6.1] - 2023-03-21
+## [0.6.1] - 2024-03-21
 
 ### Fixed
 - Fix default rc value in function process_fw_file()
 
 ### Changed
-- Updater version of ptupdater to 0.6.1
+- Update version of ptupdater to 0.6.1
 
-## [0.6.0] - 2023-03-21
+## [0.6.0] - 2024-03-21
 
 ### Changed
 - Firmware file will be stored in binary file instead of  ptu file
@@ -69,6 +84,7 @@ Technologies Touch devices on a Linux host (e.g., Chrome OS). See
 README.md for more information.
 (Note that v0.1.0 to v0.4.0 were internal-only releases.)
 
+[0.6.5]: https://github.com/ParadeTechnologies/paradetech-updater/compare/v0.6.4...v0.6.5
 [0.6.4]: https://github.com/ParadeTechnologies/paradetech-updater/compare/v0.6.3...v0.6.4
 [0.6.3]: https://github.com/ParadeTechnologies/paradetech-updater/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/ParadeTechnologies/paradetech-updater/compare/v0.6.1...v0.6.2
