@@ -455,7 +455,8 @@ int start_hidraw_report_reader(HID_Report_ID report_id)
 	}
 
 	while (report_reader_thread_status
-			== REPORT_READER_THREAD_STATUS_NOT_STARTED);
+			== REPORT_READER_THREAD_STATUS_NOT_STARTED)
+		sleep_ms(1);
 
 	rc = EXIT_SUCCESS;
 
