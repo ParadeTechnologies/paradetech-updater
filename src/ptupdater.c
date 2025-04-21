@@ -6,7 +6,7 @@
 #include "fw_version.h"
 #include "hid/hidraw.h"
 
-#define SW_VERSION "0.6.4"
+#define SW_VERSION "0.6.5"
 #define FLAG_SET 1
 #define FLAG_NOT_SET 0
 
