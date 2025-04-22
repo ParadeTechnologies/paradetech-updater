@@ -7,6 +7,8 @@
 #define FW_SELF_TEST_OUTPUT_FORMAT_U8    1
 #define FW_SELF_TEST_OUTPUT_FORMAT_U16   2
 
+#define EXIT_ALREADY_IN_REQUESTED_STATE 2
+
 #define MAX_NUM_OF_BYTES_PER_SENSOR  8
 
 char* FW_LOADER_NAMES[] = {
@@ -307,6 +309,7 @@ int write_image_to_dut_flash_file(uint8_t file_num, ByteData* image,
 	int cmd_rc = EXIT_FAILURE;
 	uint8_t file_handle;
 	bool file_open = false;
+	bool switched_state = false;
 
 	if (file_nums_to_erase != NULL && file_nums_to_erase->data == NULL) {
 		output(ERROR,
@@ -324,9 +327,11 @@ int write_image_to_dut_flash_file(uint8_t file_num, ByteData* image,
 	}
 
 	cmd_rc = _enter_flash_loader(loader_options);
-	if (cmd_rc != EXIT_SUCCESS) {
+	if (cmd_rc == EXIT_FAILURE) {
 		rc = cmd_rc;
 		goto RETURN;
+	} else if (cmd_rc == EXIT_SUCCESS) {
+		switched_state = true;
 	}
 
 	cmd_rc = _flash_file_open(file_num, &file_handle);
@@ -363,9 +368,11 @@ RETURN:
 		}
 	}
 
-	cmd_rc = _exit_flash_loader();
-	if (cmd_rc != EXIT_SUCCESS) {
-		rc = cmd_rc;
+	if (switched_state) {
+		cmd_rc = _exit_flash_loader();
+		if (cmd_rc != EXIT_SUCCESS) {
+			rc = cmd_rc;
+		}
 	}
 
 	return rc;
@@ -380,7 +387,7 @@ static int _enter_flash_loader(const Flash_Loader_Options* options)
 			if (active_flash_loader == options->list[i]) {
 				output(DEBUG, "The %s is already active.\n",
 						FW_LOADER_NAMES[active_flash_loader]);
-				return EXIT_SUCCESS;
+				return EXIT_ALREADY_IN_REQUESTED_STATE;
 			} else if (FLASH_LOADER_NONE == options->list[i]) {
 				break;
 			}
@@ -415,12 +422,12 @@ static int _enter_flash_loader(const Flash_Loader_Options* options)
 			return EXIT_FAILURE;
 		}
 
-		if (cmd_rc == EXIT_SUCCESS) {
+		if (cmd_rc != EXIT_FAILURE) {
 			active_flash_loader = options->list[i];
 			output(DEBUG,
 					"Activated the %s for reading from/writing to flash.\n",
 					FW_LOADER_NAMES[active_flash_loader]);
-			return EXIT_SUCCESS;
+			return cmd_rc;
 		}
 	}
 
@@ -628,6 +635,7 @@ int flash_file_crc(uint8_t file_num, uint32_t offset, uint32_t length, uint16_t*
 	int rc = EXIT_FAILURE;
 	int cmd_rc = EXIT_FAILURE;
 	bool file_open = false;
+	bool switched_state = false;
 	uint8_t file_handle;
 
 	output(DEBUG, "%s: Starting.\n", __func__);
@@ -636,9 +644,11 @@ int flash_file_crc(uint8_t file_num, uint32_t offset, uint32_t length, uint16_t*
 	loader_options.list[0] = FLASH_LOADER_TP_PROGRAMMER_IMAGE;
 	loader_options.list[1] = FLASH_LOADER_NONE;
 	cmd_rc = _enter_flash_loader(&loader_options);
-	if (cmd_rc != EXIT_SUCCESS) {
+	if (cmd_rc == EXIT_FAILURE) {
 		rc = cmd_rc;
 		goto RETURN;
+	} else if (cmd_rc == EXIT_SUCCESS) {
+		switched_state = true;
 	}
 
 	cmd_rc = _flash_file_open(file_num, &file_handle);
@@ -678,9 +688,80 @@ RETURN:
 		}
 	}
 
-	cmd_rc = _exit_flash_loader();
+	if (switched_state) {
+		cmd_rc = _exit_flash_loader();
+		if (cmd_rc != EXIT_SUCCESS) {
+			rc = cmd_rc;
+		}
+	}
+
+	return rc;
+}
+
+int flash_file_read(uint8_t file_num, uint16_t length, uint8_t* data)
+{
+	int rc = EXIT_FAILURE;
+	int cmd_rc = EXIT_FAILURE;
+	bool file_open = false;
+	bool switched_state = false;
+	uint8_t file_handle;
+
+	output(DEBUG, "%s: Starting.\n", __func__);
+
+	Flash_Loader_Options loader_options;
+	loader_options.list[0] = FLASH_LOADER_TP_PROGRAMMER_IMAGE;
+	loader_options.list[1] = FLASH_LOADER_NONE;
+	cmd_rc = _enter_flash_loader(&loader_options);
+	if (cmd_rc == EXIT_FAILURE) {
+		rc = cmd_rc;
+		goto RETURN;
+	} else if (cmd_rc == EXIT_SUCCESS) {
+		switched_state = true;
+	}
+
+	cmd_rc = _flash_file_open(file_num, &file_handle);
 	if (cmd_rc != EXIT_SUCCESS) {
 		rc = cmd_rc;
+		goto RETURN;
+	} else {
+		output(DEBUG, "Opened the flash file ID %u.\n", file_num);
+		file_open = true;
+	}
+
+	size_t max_rsp_len = length + sizeof(PIP3_Rsp_Payload_FileRead);
+	if (FLASH_LOADER_NONE == active_flash_loader) {
+		output(ERROR, "%s: %s.\n",
+				__func__, FW_LOADER_NAMES[active_flash_loader]);
+		rc = EXIT_FAILURE;
+	} else if (FLASH_LOADER_TP_PROGRAMMER_IMAGE == active_flash_loader
+			|| FLASH_LOADER_AUX_MCU_PROGRAMMER_IMAGE == active_flash_loader) {
+		PIP3_Rsp_Payload_FileRead rsp;
+		rsp.data = data;
+		rc = do_pip3_file_read_cmd(0x00, file_handle, length, &rsp, max_rsp_len);
+	} else if (FLASH_LOADER_PIP2_ROM_BL == active_flash_loader) {
+		PIP2_Rsp_Payload_FileRead rsp;
+		rsp.data = data;
+		rc = do_pip2_file_read_cmd(0x00, file_handle, length, &rsp, max_rsp_len);
+	} else {
+		output(ERROR,
+				"%s: Unexpected/unsupported 'Flash_Loader' enum value (%d).\n",
+				__func__, active_flash_loader);
+		rc = EXIT_FAILURE;
+	}
+
+RETURN:
+	if (file_open) {
+		cmd_rc = _flash_file_close(file_handle);
+		if (cmd_rc != EXIT_SUCCESS) {
+			rc = cmd_rc;
+		}
+	}
+
+	if (switched_state) {
+		cmd_rc = _exit_flash_loader();
+		if (cmd_rc != EXIT_SUCCESS) {
+			rc = cmd_rc;
+		}
 	}
 
 	return rc;
@@ -936,11 +1017,15 @@ static int _set_dut_state_tp_fw_exec()
 
 			active_flash_loader =
 					(PIP3_FW_CATEGORY_ID_PROGRAMMER_FW
+							== pip3_version_rsp.fw_category_id
+					|| PIP3_FW_CATEGORY_ID_BOOTLOADER_FW
 							== pip3_version_rsp.fw_category_id)
 					? FLASH_LOADER_TP_PROGRAMMER_IMAGE : FLASH_LOADER_NONE;
 
 			active_dut_state =
 					(PIP3_FW_CATEGORY_ID_PROGRAMMER_FW
+							== pip3_version_rsp.fw_category_id
+					|| PIP3_FW_CATEGORY_ID_BOOTLOADER_FW
 							== pip3_version_rsp.fw_category_id) ?
 								DUT_STATE_TP_FW_PROGRAMMER_IMAGE
 								: _get_dut_state_from_fw_sys_mode(
@@ -1141,6 +1226,20 @@ static int _set_dut_state_tp_programmer_img()
 		active_dut_state = DUT_STATE_INVALID;
 		return EXIT_FAILURE;
 	}
+	PIP3_Rsp_Payload_Version version_rsp;
+
+	if (EXIT_SUCCESS != do_pip3_version_cmd(0x00, &version_rsp)) {
+		return EXIT_FAILURE;
+	}
+
+	if (version_rsp.fw_category_id == PIP3_FW_CATEGORY_ID_PROGRAMMER_FW
+		|| version_rsp.fw_category_id == PIP3_FW_CATEGORY_ID_BOOTLOADER_FW) {
+		active_dut_state = DUT_STATE_TP_FW_PROGRAMMER_IMAGE;
+		output(DEBUG, "%s: Already running from %s.\n",
+				__func__,
+				PIP3_FW_CATEGORY_NAMES[version_rsp.fw_category_id]);
+		return EXIT_ALREADY_IN_REQUESTED_STATE;
+	}
 
 	if (EXIT_SUCCESS
 			!= do_pip3_switch_image_cmd(0x00, PIP3_IMAGE_ID_SECONDARY)) {
@@ -1229,7 +1328,7 @@ static int _verify_fw_category(PIP3_FW_Category_ID expected_fw_category_id)
 	}
 
 	if (version_rsp.fw_category_id != expected_fw_category_id) {
-		output(ERROR,
+		output(DEBUG,
 "%s: Response to the PIP3 VERSION command indicates that the active firmware\n"
 "\t  is not the expected category (expected %s, got %s).\n",
 				__func__,
