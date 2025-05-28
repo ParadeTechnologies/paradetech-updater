@@ -387,7 +387,7 @@ static int _enter_flash_loader(const Flash_Loader_Options* options)
 			if (active_flash_loader == options->list[i]) {
 				output(DEBUG, "The %s is already active.\n",
 						FW_LOADER_NAMES[active_flash_loader]);
-				return EXIT_ALREADY_IN_REQUESTED_STATE;
+				return EXIT_SUCCESS;
 			} else if (FLASH_LOADER_NONE == options->list[i]) {
 				break;
 			}
@@ -1238,7 +1238,7 @@ static int _set_dut_state_tp_programmer_img()
 		output(DEBUG, "%s: Already running from %s.\n",
 				__func__,
 				PIP3_FW_CATEGORY_NAMES[version_rsp.fw_category_id]);
-		return EXIT_ALREADY_IN_REQUESTED_STATE;
+		return EXIT_SUCCESS;
 	}
 
 	if (EXIT_SUCCESS
