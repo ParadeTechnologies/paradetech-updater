@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file, in reverse chronological order by release.
 
+## [0.6.6] - 2025-05-28
+
+### Fixed
+- Fixed exit bl failure after firmware update when primary image is broken
+
+### Changed
+- Update version of ptupdater to 0.6.6
+
 ## [0.6.5] - 2025-04-21
 
 ### Added
@@ -84,6 +92,7 @@ Technologies Touch devices on a Linux host (e.g., Chrome OS). See
 README.md for more information.
 (Note that v0.1.0 to v0.4.0 were internal-only releases.)
 
+[0.6.6]: https://github.com/ParadeTechnologies/paradetech-updater/compare/v0.6.5...v0.6.6
 [0.6.5]: https://github.com/ParadeTechnologies/paradetech-updater/compare/v0.6.4...v0.6.5
 [0.6.4]: https://github.com/ParadeTechnologies/paradetech-updater/compare/v0.6.3...v0.6.4
 [0.6.3]: https://github.com/ParadeTechnologies/paradetech-updater/compare/v0.6.2...v0.6.3
