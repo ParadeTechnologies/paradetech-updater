@@ -7,7 +7,6 @@
 #define FW_SELF_TEST_OUTPUT_FORMAT_U8    1
 #define FW_SELF_TEST_OUTPUT_FORMAT_U16   2
 
-#define EXIT_ALREADY_IN_REQUESTED_STATE 2
 
 #define MAX_NUM_OF_BYTES_PER_SENSOR  8
 
@@ -35,6 +34,7 @@ static int _set_dut_state_aux_mcu_fw_utility_img();
 static int _set_dut_state_tp_bl_exec();
 static int _set_dut_state_tp_fw_exec();
 static int _set_dut_state_tp_fw_scanning();
+static int _set_dut_state_tp_fw_test();
 static int _set_dut_state_tp_programmer_img();
 static int _verify_active_processor(PIP3_Processor_ID expected_processor,
 		long double timeout_seconds);
@@ -47,26 +47,19 @@ int calibrate_dut()
 {
 	output(DEBUG, "%s: Starting.\n", __func__);
 	int rc = EXIT_FAILURE;
-	PIP3_Rsp_Payload_ResumeScanning resume_scan_rsp;
-	PIP3_Rsp_Payload_SuspendScanning suspend_scan_rsp;
-	bool scanning_suspended = false;
 
-	rc = do_pip3_suspend_scanning_cmd(0x00, &suspend_scan_rsp);
-	if (rc != EXIT_SUCCESS) {
-		goto RETURN;
+	rc = set_dut_state(DUT_STATE_TP_FW_TEST);
+	if (rc != EXIT_SUCCESS)
+	{
+		return rc;
 	}
-	scanning_suspended = true;
 
 	rc = do_pip3_calibrate_cmd(0x00, CALIBRATION_MODE_FULL_CALIBRATION,
 			CALIBRATION_PARAM_DATA_IGNORED, CALIBRATION_PARAM_DATA_IGNORED,
 			CALIBRATION_PARAM_DATA_IGNORED);
-	if (rc != EXIT_SUCCESS) {
-		goto RETURN;
-	}
 
-RETURN:
-	if (scanning_suspended && EXIT_SUCCESS
-			!= do_pip3_resume_scanning_cmd(0x00, &resume_scan_rsp)) {
+	if (set_dut_state(DUT_STATE_TP_FW_SCANNING) != EXIT_SUCCESS)
+	{
 		rc = EXIT_FAILURE;
 	}
 
@@ -80,9 +73,7 @@ int do_dut_fw_self_test(PIP3_Self_Test_ID self_test_id,
 	output(DEBUG, "%s: Starting.\n", __func__);
 	int rc = EXIT_FAILURE;
 	PIP3_Rsp_Payload_GetSelfTestResults get_self_test_results_rsp;
-	PIP3_Rsp_Payload_ResumeScanning resume_scan_rsp;
 	PIP3_Rsp_Payload_RunSelfTest run_self_test_rsp;
-	PIP3_Rsp_Payload_SuspendScanning suspend_scan_rsp;
 	size_t max_rsp_len;
 	size_t bytes_read;
 	size_t expected_bytes_read;
@@ -110,7 +101,7 @@ int do_dut_fw_self_test(PIP3_Self_Test_ID self_test_id,
 		return EXIT_FAILURE;
 	}
 
-	rc = do_pip3_suspend_scanning_cmd(0x00, &suspend_scan_rsp);
+	rc = set_dut_state(DUT_STATE_TP_FW_TEST);
 	if (rc != EXIT_SUCCESS) {
 		goto RETURN;
 	}
@@ -186,7 +177,7 @@ int do_dut_fw_self_test(PIP3_Self_Test_ID self_test_id,
 
 RETURN:
 	if (scanning_suspended && EXIT_SUCCESS
-			!= do_pip3_resume_scanning_cmd(0x00, &resume_scan_rsp)) {
+			!= set_dut_state(DUT_STATE_TP_FW_SCANNING)) {
 		rc = EXIT_FAILURE;
 	}
 
@@ -262,7 +253,7 @@ int set_dut_state(DUT_State target_state)
 	case DUT_STATE_TP_FW_DEEP_SLEEP:
 		goto RETURN_NOT_SUPPORTED;
 	case DUT_STATE_TP_FW_TEST:
-		goto RETURN_NOT_SUPPORTED;
+		return _set_dut_state_tp_fw_test();
 	case DUT_STATE_TP_FW_DEEP_STANDBY:
 		goto RETURN_NOT_SUPPORTED;
 	case DUT_STATE_TP_FW_PROGRAMMER_IMAGE:
@@ -1015,21 +1006,16 @@ static int _set_dut_state_tp_fw_exec()
 				return EXIT_FAILURE;
 			}
 
-			active_flash_loader =
-					(PIP3_FW_CATEGORY_ID_PROGRAMMER_FW
-							== pip3_version_rsp.fw_category_id
-					|| PIP3_FW_CATEGORY_ID_BOOTLOADER_FW
-							== pip3_version_rsp.fw_category_id)
-					? FLASH_LOADER_TP_PROGRAMMER_IMAGE : FLASH_LOADER_NONE;
+			if (PIP3_FW_CATEGORY_ID_PROGRAMMER_FW == pip3_version_rsp.fw_category_id
+				|| PIP3_FW_CATEGORY_ID_BOOTLOADER_FW == pip3_version_rsp.fw_category_id)
+			{
+				active_flash_loader = FLASH_LOADER_TP_PROGRAMMER_IMAGE;
+				active_dut_state = DUT_STATE_TP_FW_PROGRAMMER_IMAGE;
+			} else {
+				active_flash_loader = FLASH_LOADER_NONE;
+				active_dut_state = _get_dut_state_from_fw_sys_mode(pip3_status_rsp.sys_mode);
+			}
 
-			active_dut_state =
-					(PIP3_FW_CATEGORY_ID_PROGRAMMER_FW
-							== pip3_version_rsp.fw_category_id
-					|| PIP3_FW_CATEGORY_ID_BOOTLOADER_FW
-							== pip3_version_rsp.fw_category_id) ?
-								DUT_STATE_TP_FW_PROGRAMMER_IMAGE
-								: _get_dut_state_from_fw_sys_mode(
-										pip3_status_rsp.sys_mode);
 			return EXIT_SUCCESS;
 		case PIP3_EXEC_ROM:
 			output(ERROR,
@@ -1197,6 +1183,118 @@ static int _set_dut_state_tp_fw_scanning()
 		break;
 	case PIP3_APP_SYS_MODE_TEST_CONFIG:
 		rc = do_pip3_resume_scanning_cmd(0x00, &resume_scan_rsp);
+		break;
+	case PIP3_APP_SYS_MODE_DEEP_STANDBY:
+		output(ERROR,
+				"%s: The only way to exit %s is to toggle the external reset "
+				"but this action is not currently supported with "
+				"drivers/channels other than TTDL.\n",
+				__func__);
+		rc = EXIT_FAILURE;
+		break;
+	default:
+		output(ERROR, "%s: Unexpected FW System Mode: 0x%02X.\n", __func__,
+				status_rsp.sys_mode);
+		rc = EXIT_FAILURE;
+	}
+
+	return rc;
+}
+
+static int _set_dut_state_tp_fw_test()
+{
+	output(DEBUG, "%s: Starting.\n", __func__);
+	int rc = EXIT_FAILURE;
+	PIP3_Rsp_Payload_SuspendScanning suspend_scan_rsp;
+	PIP3_Rsp_Payload_Status status_rsp;
+	int wait_time_remaining = BOOT_2_SCANNING_MAX_WAIT_MS;
+
+	if (EXIT_SUCCESS != _set_dut_state_tp_fw_exec()) {
+		active_dut_state = DUT_STATE_INVALID;
+		return EXIT_FAILURE;
+	}
+
+	switch (active_dut_state) {
+	case DUT_STATE_TP_FW_TEST:
+		return EXIT_SUCCESS;
+
+	case DUT_STATE_TP_FW_PROGRAMMER_IMAGE:
+		if (EXIT_SUCCESS
+				!= do_pip3_switch_image_cmd(0x00, PIP3_IMAGE_ID_PRIMARY)) {
+			active_dut_state = DUT_STATE_INVALID;
+			return EXIT_FAILURE;
+		}
+
+		if (EXIT_SUCCESS != _verify_fw_category(PIP3_FW_CATEGORY_ID_TOUCH_FW)) {
+			active_dut_state = DUT_STATE_INVALID;
+			return EXIT_FAILURE;
+		}
+
+		active_flash_loader = FLASH_LOADER_NONE;
+
+		break;
+	default:
+		;
+	}
+
+	rc = do_pip3_status_cmd(0x00, &status_rsp);
+	if (rc != EXIT_SUCCESS) {
+		return rc;
+	}
+
+	output(DEBUG,
+			"\n"
+			"  EXEC:           %s\n"
+			"  FW System Mode: %s\n",
+			PIP3_EXEC_NAMES[status_rsp.exec],
+			PIP3_APP_SYS_MODE_NAMES[status_rsp.sys_mode]);
+
+	if (status_rsp.exec != PIP3_EXEC_RAM) {
+		output(ERROR,
+				"%s: The DUT is stuck in the bootloader. Cannot exit (or enter)"
+				"the PIP2 Bootloader when using drivers/channels other than "
+				"TTDL.\n",
+				__func__);
+		return EXIT_FAILURE;
+	}
+
+	switch (status_rsp.sys_mode) {
+	case PIP3_APP_SYS_MODE_BOOT:
+		while (wait_time_remaining > 0
+				&& status_rsp.sys_mode == PIP3_APP_SYS_MODE_BOOT) {
+			sleep_ms(BOOT_2_SCANNING_POLLING_INTERVAL_MS);
+			wait_time_remaining -= BOOT_2_SCANNING_POLLING_INTERVAL_MS;
+			output(DEBUG, "wait_time_remaining: %d.\n",  wait_time_remaining);
+			if ( ((BOOT_2_SCANNING_MAX_WAIT_MS - wait_time_remaining) %
+					BOOT_2_SCANNING_INFO_MESSAGE_INTERVAL_MS) == 0) {
+				output(INFO, "Waiting for FW to exit boot mode.\n");
+			}
+			rc = do_pip3_status_cmd(0x00, &status_rsp);
+			if (rc != EXIT_SUCCESS) {
+				return rc;
+			}
+		}
+		if (wait_time_remaining <= 0) {
+			output(ERROR, "Timeout waiting for FW to exit boot mode.\n");
+			rc = EXIT_FAILURE;
+			break;
+		}
+		rc = do_pip3_suspend_scanning_cmd(0x00, &suspend_scan_rsp);
+		break;
+	case PIP3_APP_SYS_MODE_TEST_CONFIG:
+		output(DEBUG, "Already in %s.\n",
+				PIP3_APP_SYS_MODE_NAMES[PIP3_APP_SYS_MODE_TEST_CONFIG]);
+		rc = EXIT_SUCCESS;
+		break;
+	case PIP3_APP_SYS_MODE_DEEP_SLEEP:
+		output(ERROR, "%s: Switching from %s to %s is not implemented yet.\n",
+				__func__,
+				PIP3_APP_SYS_MODE_NAMES[PIP3_APP_SYS_MODE_DEEP_SLEEP],
+				PIP3_APP_SYS_MODE_NAMES[PIP3_APP_SYS_MODE_SCANNING]);
+		rc = EXIT_FAILURE;
+		break;
+	case PIP3_APP_SYS_MODE_SCANNING:
+		rc = do_pip3_suspend_scanning_cmd(0x00, &suspend_scan_rsp);
 		break;
 	case PIP3_APP_SYS_MODE_DEEP_STANDBY:
 		output(ERROR,

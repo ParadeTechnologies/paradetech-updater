@@ -940,6 +940,7 @@ int do_pip3_load_self_test_param_cmd(uint8_t seq_num, uint8_t self_test_id,
 			cmd_data->header.reserved_section_1 = 0;
 			cmd_data->header.cmd_id =
 					(uint8_t) PIP3_CMD_ID_LOAD_SELF_TEST_PARAM;
+			cmd_data->header.resp = 0;
 			cmd_data->load_offset_lsb = load_offset & 0xFF;
 			cmd_data->load_offset_msb = load_offset >> 8;
 			cmd_data->load_len_lsb = param_data_part_len & 0xFF;
@@ -1340,7 +1341,7 @@ int do_pip3_switch_active_processor_cmd(uint8_t seq_num,
 	return rc;
 }
 
-#define DELAY_FOR_SWITCH_IMAGE_CMD_SECS 2
+#define DELAY_FOR_SWITCH_IMAGE_CMD_MS 100
 
 int do_pip3_switch_image_cmd(uint8_t seq_num, PIP3_Image_ID image_id)
 {
@@ -1378,10 +1379,10 @@ int do_pip3_switch_image_cmd(uint8_t seq_num, PIP3_Image_ID image_id)
 	rc = send_report_via_channel(&cmd);
 
 	output(DEBUG,
-			"Waiting %u seconds to give the DUT enough time to switch "
+			"Waiting %u ms to give the DUT enough time to switch "
 			"images.\n",
-			DELAY_FOR_SWITCH_IMAGE_CMD_SECS);
-	sleep(DELAY_FOR_SWITCH_IMAGE_CMD_SECS);
+			DELAY_FOR_SWITCH_IMAGE_CMD_MS);
+	sleep_ms(DELAY_FOR_SWITCH_IMAGE_CMD_MS);
 
 	output(DEBUG, "%s: Leaving.\n", __func__);
 	return rc;
