@@ -513,6 +513,9 @@ static int process_fw_file(const char* file, bool update_fw)
 						&flash_files_to_erase,
 						&loader_options)) {
 			rc = EXIT_FAILURE;
+		} else if (EXIT_SUCCESS
+				!= set_dut_state(DUT_STATE_TP_FW_SCANNING)) {
+			rc = EXIT_FAILURE;
 		}
 	}
 
