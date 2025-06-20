@@ -74,6 +74,15 @@ typedef enum {
 	NUM_OF_PIP3_PROCESSOR_IDS = 2
 } PIP3_Processor_ID;
 
+typedef enum {
+	PIP3_DATA_BLOCK_CONFIGURATION_DATA    = 0x00,
+	PIP3_DATA_BLOCK_MANUFACTURING_DATA    = 0x01,
+	PIP3_DATA_BLOCK_DESIGN_DATA           = 0x02,
+	PIP3_DATA_BLOCK_HID_DESCRIPTOR        = 0x03,
+	PIP3_DATA_BLOCK_HID_REPORT_DESCRIPTOR = 0x04,
+	PIP3_DATA_BLOCK_CALIBRATION_DATA      = 0x05,
+} PIP3_Data_Block_ID;
+
 extern char* PIP3_PROCESSOR_NAMES[NUM_OF_PIP3_PROCESSOR_IDS];
 
 typedef struct {
@@ -209,6 +218,21 @@ typedef struct {
 	uint8_t* data;
 	PIP3_Rsp_Footer footer;
 } __attribute__((packed)) PIP3_Rsp_Payload_FileRead;
+
+typedef struct {
+	PIP3_Cmd_Header header;
+	uint16_t read_offset;
+	uint16_t read_len;
+	uint8_t  block_id;
+	PIP3_Cmd_Footer footer;
+} __attribute__((packed)) PIP3_Cmd_Payload_GetDataBlock;
+
+typedef struct {
+	PIP3_Rsp_Header header;
+	uint16_t actual_read_len;
+	uint8_t* data;
+	PIP3_Rsp_Footer footer;
+} __attribute__((packed)) PIP3_Rsp_Payload_GetDataBlock;
 
 typedef struct {
 	PIP3_Cmd_Header header;
@@ -506,6 +530,14 @@ extern int do_pip3_switch_active_processor_cmd(uint8_t seq_num,
 		PIP3_Processor_ID processor_id, uint8_t switch_data);
 extern int do_pip3_switch_image_cmd(uint8_t seq_num, PIP3_Image_ID image_id);
 extern int do_pip3_version_cmd(uint8_t seq_num, PIP3_Rsp_Payload_Version* rsp);
+extern int do_pip3_get_data_block_cmd(
+		uint8_t seq_num,
+		uint16_t read_offset,
+		uint16_t read_len,
+		PIP3_Data_Block_ID data_block_id,
+		PIP3_Rsp_Payload_GetDataBlock* rsp,
+		size_t max_rsp_size
+	);
 extern Poll_Status get_pip3_unsolicited_async_rsp(ReportData* rsp,
 		bool apply_timeout, long double timeout_val);
 extern bool is_pip3_api_active();

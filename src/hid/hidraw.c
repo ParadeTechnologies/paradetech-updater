@@ -7,6 +7,8 @@
 #define HIDRAW_SYSFS_NODE_FILE_MAX_STRLEN 20
 #define REPORT_BUFFER_SIZE 256 
 
+#define AVG_DELAY_BETWEEN_CMD_AND_RSP 20 
+
 static char hidraw_sysfs_node_file[HIDRAW_SYSFS_NODE_FILE_MAX_STRLEN] =
 		HIDRAW0_SYSFS_NODE_FILE;
 static int hidraw0_fd;
@@ -45,12 +47,12 @@ static size_t hid_input_report_size;
 
 static Poll_Status _consume_report(HID_Report_ID target_report_id,
 		uint* next_victim_report_index, bool* more_reports);
-static int _get_max_input_len();
-static int _get_max_output_len();
 static Poll_Status _read_report(ReportData* report);
 static void* _report_reader_thread(void* arg);
 static int _try_hidraw_sysfs_node(char* sysfs_node_file, int vendor_id,
 		int product_id);
+static int _get_hid_descriptor_from_data_block(HID_Descriptor* hid_desc);
+static int _pip_cmd_rsp(const ReportData* report, ReportData* rsp);
 
 Channel hidraw_channel = {
 	.type               = CHANNEL_TYPE_HIDRAW,
@@ -165,69 +167,121 @@ int get_hid_descriptor_from_hidraw(HID_Descriptor* hid_desc)
 		goto COPY;
 	}
 
-	fd = open(hidraw_sysfs_node_file, O_RDWR | O_NONBLOCK);
+	if (EXIT_FAILURE == _get_hid_descriptor_from_data_block(&_hid_desc)) {
+		return EXIT_FAILURE;
+	}
+
+COPY:
+	memcpy((void*) hid_desc, (void*) &_hid_desc, sizeof(HID_Descriptor));
+	hid_desc_read = true;
+	return EXIT_SUCCESS;
+}
+
+
+static int _get_hid_descriptor_from_data_block(HID_Descriptor* hid_desc)
+{
+	output(DEBUG, "%s: Starting.\n", __func__);
+	int fd;
+
+	uint8_t suspend_scan_cmd_data[] = {
+			0x04, 0x06, 0x00, 0x08, 0x33, 0x2C, 0xC0};
+	ReportData suspend_scan_cmd = {
+			.data = suspend_scan_cmd_data,
+			.len  = sizeof(suspend_scan_cmd_data)
+	};
+
+	uint8_t suspend_scan_rsp_data[HID_MAX_INPUT_REPORT_SIZE];
+	ReportData suspend_scan_rsp = {
+			.data = suspend_scan_rsp_data,
+			.max_len = HID_MAX_INPUT_REPORT_SIZE
+	};
+	if (EXIT_SUCCESS != _pip_cmd_rsp(&suspend_scan_cmd, &suspend_scan_rsp)) {
+		return EXIT_FAILURE;
+	}
+
+	uint8_t get_data_block_cmd_data[] =
+		{ 0x04, 0x0B, 0x00, 0x08, 0x22, 0x00, 0x00, 0xFF, 0xFF, 0x03, 0xCD, 0xD3 };
+
+	ReportData get_data_block_cmd = {
+			.data = get_data_block_cmd_data,
+			.len  = sizeof(get_data_block_cmd_data)
+	};
+
+	uint8_t get_data_block_rsp_data[HID_MAX_INPUT_REPORT_SIZE];
+	ReportData get_data_block_rsp = {
+			.data = get_data_block_cmd_data,
+			.max_len = HID_MAX_INPUT_REPORT_SIZE
+	};
+	if (EXIT_SUCCESS != _pip_cmd_rsp(&get_data_block_cmd, &get_data_block_rsp)) {
+		return EXIT_FAILURE;
+	}
+
+	memcpy(hid_desc, &get_data_block_rsp.data[13], sizeof(HID_Descriptor));
+
+	return EXIT_SUCCESS;
+}
+
+static int _pip_cmd_rsp(const ReportData* report, ReportData* rsp)
+{
+	output(DEBUG, "%s: Starting.\n", __func__);
+
+	if (report == NULL || report->data == NULL || rsp == NULL || rsp->data == NULL)
+	{
+		output(ERROR, "%s: INVALID PARAMETERS\n", __func__);
+		return EXIT_FAILURE;
+	}
+
+	int rc = EXIT_FAILURE;
+	int fd = open(hidraw_sysfs_node_file, O_RDWR);
 	if (fd < 0) {
 		output(ERROR, "%s: Failed to open %s. %s [%d]\n", __func__,
 				hidraw_sysfs_node_file, strerror(errno), errno);
 		return EXIT_FAILURE;
 	}
-	file_opened = true;
 
-	read_rc = ioctl(fd, HIDIOCGRDESCSIZE, &rpt_desc_size);
-	if (read_rc < 0) {
-		output(ERROR,
-				"%s: Failed to read the Report Descriptor size from %s. "
-				"%s [%d]\n",
-				__func__, hidraw_sysfs_node_file, strerror(errno), errno);
-		rc = EXIT_FAILURE;
-		goto RETURN;
+	output_debug_report(REPORT_DIRECTION_OUTGOING_TO_DUT, REPORT_FORMAT_HID,
+		"HID RAW CMD:", REPORT_TYPE_COMMAND, report);
+	if (EXIT_SUCCESS != write_report(report, hidraw_sysfs_node_file)) {
+		goto EXIT;
 	}
 
-	max_input_len = _get_max_input_len();
-	if (max_input_len <= 0) {
-		rc = EXIT_FAILURE;
-		goto RETURN;
+	sleep_ms(AVG_DELAY_BETWEEN_CMD_AND_RSP);
+
+	rsp->len = read(fd, rsp->data, rsp->max_len);
+	if (rsp->len < 0) {
+		output(ERROR, "%s: Failed to read from %s. %s [%d]\n", __func__,
+				hidraw_sysfs_node_file, strerror(errno), errno);
+		goto EXIT;
+	} else if (rsp->len == 0) {
+		output(ERROR, "%s: Zero bytes read from %s. Something went wrong.\n",
+				__func__, hidraw_sysfs_node_file);
+		goto EXIT;
 	}
 
-	max_output_len = _get_max_output_len();
-	if (max_output_len <= 0) {
-		rc = EXIT_FAILURE;
-		goto RETURN;
+	bool m_rpt = rsp->data[1] & 0x01;
+	while(m_rpt) {
+		uint8_t tmp_buf[256];
+		int read_len = read(fd, tmp_buf, sizeof(tmp_buf));
+		if (read_len < 0) {
+			output(ERROR, "%s: Failed to read from %s. %s [%d]\n", __func__,
+					hidraw_sysfs_node_file, strerror(errno), errno);
+			goto EXIT;
+		} else if (read_len == 0) {
+			output(ERROR, "%s: Zero bytes read from %s. Something went wrong.\n",
+					__func__, hidraw_sysfs_node_file);
+			goto EXIT;
+		}
+
+		m_rpt = tmp_buf[1] & 0x01;
+		int data_len = read_len - 2;
+		memcpy(&rsp->data[rsp->len], &tmp_buf[2], data_len);
+		rsp->len += data_len;
 	}
 
-	read_rc = ioctl(fd, HIDIOCGRAWINFO, &dev_info);
-	if (read_rc < 0) {
-		output(ERROR,
-				"%s: Failed to read the raw device info from %s. "
-				"%s [%d]\n",
-				__func__, hidraw_sysfs_node_file, strerror(errno), errno);
-		rc = EXIT_FAILURE;
-		goto RETURN;
-	}
-
-	_hid_desc.hid_desc_len      = 0x001E;
-	_hid_desc.bcd_version       = 0x0100;
-	_hid_desc.rpt_desc_len      = (uint16_t) rpt_desc_size;
-	_hid_desc.rpt_desc_register = 0x0002;
-	_hid_desc.input_register    = 0x0003;
-	_hid_desc.max_input_len     = (uint16_t) max_input_len;
-	_hid_desc.output_register   = 0x0004;
-	_hid_desc.max_output_len    = (uint16_t) max_output_len;
-	_hid_desc.cmd_register      = 0x0004;
-	_hid_desc.data_register     = 0x0005;
-	_hid_desc.vendor_id         = dev_info.vendor;
-	_hid_desc.product_id        = dev_info.product;
-	_hid_desc.version_id        = 0x0000;
-
-COPY:
-	memcpy((void*) hid_desc, (void*) &_hid_desc, sizeof(_hid_desc));
-	hid_desc_read = true;
 	rc = EXIT_SUCCESS;
 
-RETURN:
-	if (file_opened) {
-		close(fd);
-	}
+EXIT:
+	close(fd);
 	return rc;
 }
 
@@ -556,105 +610,6 @@ static Poll_Status _consume_report(HID_Report_ID target_report_id,
 	pthread_mutex_unlock(&report_buffer_mutex);
 
 	return read_status;
-}
-
-#define AVG_DELAY_BETWEEN_CMD_AND_RSP 5 
-
-static int _get_max_input_len()
-{
-	output(DEBUG, "%s: Starting.\n", __func__);
-	int fd;
-	int max_input_len;
-
-	fd = open(hidraw_sysfs_node_file, O_RDWR);
-	if (fd < 0) {
-		output(ERROR, "%s: Failed to open %s. %s [%d]\n", __func__,
-				hidraw_sysfs_node_file, strerror(errno), errno);
-		return -1;
-	}
-
-	uint8_t suspend_scan_cmd_data[] = {
-			0x04, 0x06, 0x00, 0x08, 0x33, 0x2C, 0xC0};
-	ReportData suspend_scan_cmd = {
-			.data = suspend_scan_cmd_data,
-			.len  = sizeof(suspend_scan_cmd_data)
-	};
-	output_debug_report(REPORT_DIRECTION_OUTGOING_TO_DUT, REPORT_FORMAT_HID,
-			"SUSPEND_SCAN", REPORT_TYPE_COMMAND, &suspend_scan_cmd);
-	if (EXIT_SUCCESS
-			!= write_report(&suspend_scan_cmd, hidraw_sysfs_node_file)) {
-		max_input_len = -1;
-		goto RETURN;
-	}
-
-	sleep_ms(AVG_DELAY_BETWEEN_CMD_AND_RSP);
-
-	uint8_t ping_cmd_data[] = {0x04, 0x06, 0x00, 0x08, 0x00, 0x2A, 0xF0};
-	ReportData ping_cmd = {
-			.data = ping_cmd_data,
-			.len  = sizeof(ping_cmd_data)
-	};
-	output_debug_report(REPORT_DIRECTION_OUTGOING_TO_DUT, REPORT_FORMAT_HID,
-			"PING", REPORT_TYPE_COMMAND, &ping_cmd);
-	if (EXIT_SUCCESS != write_report(&ping_cmd, hidraw_sysfs_node_file)) {
-		max_input_len = -1;
-		goto RETURN;
-	}
-
-	sleep_ms(AVG_DELAY_BETWEEN_CMD_AND_RSP);
-
-	uint8_t ping_rsp[HID_MAX_INPUT_REPORT_SIZE];
-	max_input_len = read(fd, ping_rsp, HID_MAX_INPUT_REPORT_SIZE);
-	if (max_input_len < 0) {
-		output(ERROR, "%s: Failed to read from %s. %s [%d]\n", __func__,
-				hidraw_sysfs_node_file, strerror(errno), errno);
-	} else if (max_input_len == 0) {
-		output(ERROR, "%s: Zero bytes read from %s. Something went wrong.\n",
-				__func__);
-		max_input_len = -1;
-	} else {
-		max_input_len += 2;
-		output(DEBUG, "Max HID input report length: %d bytes.\n",
-				max_input_len);
-	}
-
-RETURN:
-	return max_input_len;
-}
-
-static int _get_max_output_len()
-{
-	output(DEBUG, "%s: Starting.\n", __func__);
-
-	int fd = open(hidraw_sysfs_node_file, O_RDWR);
-	if (fd < 0) {
-		output(ERROR, "%s: Failed to open %s. %s [%d]\n", __func__,
-				hidraw_sysfs_node_file, strerror(errno), errno);
-		return -1;
-	}
-
-	int max_output_len;
-	uint8_t ping_cmd[HID_MAX_OUTPUT_REPORT_SIZE] = {
-			0x04, 0x06, 0x00, 0x08, 0x00, 0x2A, 0xF0
-	};
-	int lower_len = 0;
-	int upper_len = sizeof(ping_cmd);
-	while (lower_len <= upper_len) {
-		int mid_len = (upper_len + lower_len) / 2;
-		int res = write(fd, ping_cmd, mid_len);
-		if (res < 0) {
-			upper_len = mid_len - 1;
-		} else {
-			max_output_len = res;
-			lower_len = max_output_len + 1;
-		}
-		sleep_ms(AVG_DELAY_BETWEEN_CMD_AND_RSP);
-	}
-
-	max_output_len += 2;
-	output(DEBUG, "Max HID output report length: %d bytes.\n", max_output_len);
-
-	return max_output_len;
 }
 
 static Poll_Status _read_report(ReportData* report)

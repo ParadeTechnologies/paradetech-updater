@@ -40,5 +40,6 @@ extern int write_image_to_dut_flash_file(uint8_t file_num, ByteData* image,
 		const Flash_Loader_Options* loader_options);
 extern int flash_file_crc(uint8_t file_num, uint32_t offset, uint32_t length, uint16_t* crc);
 extern int flash_file_read(uint8_t file_num, uint16_t length, uint8_t* data);
+extern int get_data_block(PIP3_Data_Block_ID data_block_id, ByteData* data_block, size_t max_len);
 
 #endif 

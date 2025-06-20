@@ -96,6 +96,7 @@ int do_pip3_command(ReportData* cmd, ReportData* rsp)
 	}
 
 	sleep_ms(AVG_DELAY_BETWEEN_CMD_AND_RSP);
+	bool detected_first_rpt = false;
 
 	do {
 		const HID_Input_PIP3_Response* input_report;
@@ -129,6 +130,18 @@ int do_pip3_command(ReportData* cmd, ReportData* rsp)
 
 		if (rc == EXIT_SUCCESS) {
 			input_report = (HID_Input_PIP3_Response*) rsp_report.data;
+			if ((!detected_first_rpt && !input_report->first_report) ||
+					(detected_first_rpt && input_report->first_report) ||
+					(input_report->first_report && output_report->cmd_id != input_report->cmd_id))
+			{
+				output(DEBUG, "%s: Invalid PIP report. Discarding\n", __func__);
+				output_debug_report(REPORT_DIRECTION_INCOMING_FROM_DUT,
+					REPORT_FORMAT_HID, PIP3_CMD_NAMES[output_report->cmd_id],
+					REPORT_TYPE_RESPONSE, &rsp_report);
+				more_reports = true; 
+				continue;
+			}
+			detected_first_rpt = true;
 			rc = _verify_pip3_rsp_report(HID_REPORT_ID_SOLICITED_RESPONSE,
 					output_report->seq, output_report->cmd_id, input_report);
 		}
@@ -858,6 +871,109 @@ int do_pip3_get_sysinfo_cmd(uint8_t seq_num, PIP3_Rsp_Payload_GetSysinfo* rsp)
 	};
 
 	return do_pip3_command(&cmd, &_rsp);
+}
+
+int do_pip3_get_data_block_cmd(
+		uint8_t seq_num,
+		uint16_t read_offset,
+		uint16_t read_len,
+		PIP3_Data_Block_ID data_block_id,
+		PIP3_Rsp_Payload_GetDataBlock* rsp,
+		size_t max_rsp_size
+	)
+{
+	output(DEBUG, "%s: Starting.\n", __func__);
+
+	if (rsp == NULL) {
+		output(ERROR, "%s: NULL argument provided.\n", __func__);
+		return EXIT_FAILURE;
+	} else if (seq_num > MAX_SEQ_NUM) {
+		output(ERROR,
+				"%s: The sequence number must be less <= 7 (%u was given).\n",
+				__func__, seq_num);
+		return EXIT_FAILURE;
+	}
+
+	uint16_t cmd_payload_len = sizeof(PIP3_Cmd_Payload_GetDataBlock) - 1;
+	PIP3_Cmd_Payload_GetDataBlock cmd_data = {
+			.header = {
+					.report_id          = HID_REPORT_ID_COMMAND,
+					.payload_len_lsb    = cmd_payload_len & 0xFF,
+					.payload_len_msb    = cmd_payload_len >> 8,
+					.seq                = seq_num,
+					.tag                = TAG_BIT,
+					.more_data          = 0,
+					.reserved_section_1 = 0,
+					.cmd_id             = (uint8_t) PIP3_CMD_ID_GET_DATA_BLOCK,
+					.resp               = 0
+			},
+			.read_offset = read_offset,
+			.read_len = read_len,
+			.block_id = (uint8_t) data_block_id
+	};
+	ReportData cmd = {
+			.data = (uint8_t*) &cmd_data,
+			.len  = sizeof(cmd_data)
+	};
+	uint16_t cmd_crc = calculate_crc16_ccitt(
+			0xFFFF, &(cmd.data[1]), cmd.len - 3);
+	cmd.data[cmd.len - 2] = cmd_crc >> 8;
+	cmd.data[cmd.len - 1] = cmd_crc & 0xFF;
+
+	ReportData _rsp = {
+			.data        = NULL,
+			.len         = 0,
+			.index       = 0,
+			.num_records = 0,
+			.max_len     = max_rsp_size
+	};
+	uint16_t rsp_crc;
+	uint8_t rsp_crc_msb;
+	uint8_t rsp_crc_lsb;
+
+	_rsp.data = (uint8_t*) calloc(max_rsp_size, 1);
+	if (_rsp.data == NULL) {
+		output(ERROR, "%s: Memory allocation failed.\n", __func__);
+		return EXIT_FAILURE;
+	}
+
+	int rc = do_pip3_command(&cmd, &_rsp);
+	if (EXIT_SUCCESS != rc) {
+		goto RETURN;
+	}
+
+	memcpy((void*) &rsp->header, (void*) _rsp.data, sizeof(PIP3_Rsp_Header));
+
+	rsp->actual_read_len =
+			((PIP3_Rsp_Payload_GetDataBlock*) _rsp.data)->actual_read_len;
+
+	memcpy((void*) rsp->data, (void*) &_rsp.data[sizeof(PIP3_Rsp_Header) + 2],
+			rsp->actual_read_len);
+
+	rsp->footer.crc_msb = _rsp.data[_rsp.len - 2];
+	rsp->footer.crc_lsb = _rsp.data[_rsp.len - 1];
+
+	rsp_crc = calculate_crc16_ccitt(0xFFFF, _rsp.data, _rsp.len - 2);
+	rsp_crc_msb = rsp_crc >> 8;
+	rsp_crc_lsb = rsp_crc & 0xFF;
+
+	if (rsp->footer.crc_msb != rsp_crc_msb
+			|| rsp->footer.crc_lsb != rsp_crc_lsb) {
+		output(ERROR,
+				"Unexpected PIP3 Response CRC:\n"
+				"\tReceived   = %02X %02X\n"
+				"\tCalculated = %02X %02X\n",
+				rsp->footer.crc_msb, rsp->footer.crc_lsb,
+				rsp_crc_msb, rsp_crc_lsb);
+		rc = EXIT_FAILURE;
+		goto RETURN;
+	}
+
+	rc = EXIT_SUCCESS;
+
+RETURN:
+	free(_rsp.data);
+	return rc;
 }
 
 int do_pip3_load_self_test_param_cmd(uint8_t seq_num, uint8_t self_test_id,
