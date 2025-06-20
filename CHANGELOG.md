@@ -2,12 +2,21 @@
 
 All notable changes to this project will be documented in this file, in reverse chronological order by release.
 
-## [0.6.6] - 2025-05-28
+## [0.7.0] - 2025-06-20
+
+### Changed
+- Remove PIP2 support
+- Remove PTU file support
+- Synchronize latest PtLib
+- Update version of ptupdater to 0.7.0
+
+## [0.6.6] - 2025-06-16
 
 ### Fixed
 - Fixed exit bl failure after firmware update when primary image is broken
 
 ### Changed
+- Synchronize latest PtLib
 - Update version of ptupdater to 0.6.6
 
 ## [0.6.5] - 2025-04-21
@@ -92,6 +101,7 @@ Technologies Touch devices on a Linux host (e.g., Chrome OS). See
 README.md for more information.
 (Note that v0.1.0 to v0.4.0 were internal-only releases.)
 
+[0.7.0]: https://github.com/ParadeTechnologies/paradetech-updater/compare/v0.6.6...v0.7.0
 [0.6.6]: https://github.com/ParadeTechnologies/paradetech-updater/compare/v0.6.5...v0.6.6
 [0.6.5]: https://github.com/ParadeTechnologies/paradetech-updater/compare/v0.6.4...v0.6.5
 [0.6.4]: https://github.com/ParadeTechnologies/paradetech-updater/compare/v0.6.3...v0.6.4
