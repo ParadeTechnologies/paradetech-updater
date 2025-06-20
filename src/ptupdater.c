@@ -6,21 +6,14 @@
 #include "fw_version.h"
 #include "hid/hidraw.h"
 
-#define SW_VERSION "0.6.6"
-#define FLAG_SET 1
-#define FLAG_NOT_SET 0
-
-#define I2C_ADDR 0x24
+#define SW_VERSION "0.7.0"
 
 typedef struct {
 	bool check_active;
 	bool check_target;
 	bool update;
 	char* hidraw_sysfs_node_file;
-	char* ptu_file;
-	bool use_i2c_dev;
-	int i2c_bus;
-	int i2c_addr;
+	char* bin_file;
 } PtUpdater_Config;
 
 static void _parse_args(int argc, char **argv, PtUpdater_Config* config);
@@ -37,10 +30,7 @@ int main(int argc, char **argv)
 		.check_target = false,
 		.update = false,
 		.hidraw_sysfs_node_file = NULL,
-		.ptu_file = NULL,
-		.use_i2c_dev = false,
-		.i2c_bus = 0,
-		.i2c_addr = I2C_ADDR,
+		.bin_file = NULL,
 	};
 
 	if (argc == 1) {
@@ -103,76 +93,6 @@ int main(int argc, char **argv)
 	rc = _run(&config);
 
 	exit(rc);
-}
-
-static int _get_hid_descriptor_via_i2c_dev(int i2c_bus, int i2c_addr,
-	HID_Descriptor* hid_desc)
-{
-	output(DEBUG, "%s: Starting.\n", __func__);
-	int rc = EXIT_FAILURE;
-
-	char filename[20] = {0};
-
-	uint8_t cmd[] = {0x01, 0x00};
-	size_t  cmd_len = sizeof(cmd);
-	ssize_t num_bytes_written = 0;
-
-	size_t hid_desc_len = sizeof(HID_Descriptor);
-	ssize_t num_bytes_read = 0;
-
-	int dev_fd = open_i2c_dev(i2c_bus, filename, sizeof(filename), 0);
-	if (dev_fd < 0) {
-		output(ERROR,
-				"%s: Failed to open the i2c-dev sysfs node for I2C bus %d. %s "
-				"[%d].\n", __func__, i2c_bus, strerror(errno), errno);
-		return EXIT_FAILURE;
-		/* NOTREACHED */
-	}
-
-	errno = 0;
-
-	if (set_slave_addr(dev_fd, i2c_addr, 1) != 0) {
-		output(ERROR, "%s: Failed to set I2C slave device 0x%02X. %s [%d].\n",
-				__func__, i2c_addr, strerror(errno), errno);
-		goto RETURN;
-	}
-
-	num_bytes_written = write(dev_fd, cmd, cmd_len);
-	if (errno != 0) {
-		output(ERROR,
-				"%s: Failed to send the Get HID Descriptor command to %s. %s "
-				"[%d].\n",
-				__func__, filename, strerror(errno), errno);
-		goto RETURN;
-	} else if (num_bytes_written != cmd_len) {
-		output(ERROR, "%s: Incorrect number of bytes written for the Get HID "
-				"Descriptor command (expected %lu, got %d).\n",
-				__func__, cmd_len, num_bytes_written);
-		goto RETURN;
-	}
-
-	/*
-	 * Sleep for 1 millisecond to allow for the DUT to reply to the Get HID
-	 * Descriptor command.
-	 */
-	sleep_ms(1);
-
-	num_bytes_read = read(dev_fd, (uint8_t*) hid_desc, hid_desc_len);
-	if (errno != 0) {
-		output(ERROR, "%s: Failed to read report to %s. %s [%d].\n",
-				__func__, filename, strerror(errno), errno);
-		goto RETURN;
-	} else if (num_bytes_read != hid_desc_len) {
-		output(ERROR, "%s: Expected exactly %lu bytes, but read (%d) bytes.\n",
-				__func__, hid_desc_len, num_bytes_read);
-
-	} else {
-		rc = EXIT_SUCCESS;
-	}
-
-RETURN:
-	close(dev_fd);
-	return rc;
 }
 
 static void _parse_args(int argc, char **argv, PtUpdater_Config* config)
@@ -238,20 +158,15 @@ static void _parse_args(int argc, char **argv, PtUpdater_Config* config)
 			if (strcmp(long_options[option_index].name, "check-active") == 0) {
 				config->check_active = true;
 				output(DEBUG, "option --check-active\n");
-			} else if (strcmp(long_options[option_index].name, "i2c-bus")
-					== 0) {
-				config->use_i2c_dev = true;
-				config->i2c_bus = (int) strtol(optarg, NULL, 10);
-				output(DEBUG, "option --i2c-bus %d\n", config->i2c_bus);
 			} else if (strcmp(long_options[option_index].name, "check-target")
 					== 0) {
 				config->check_target = true;
-				config->ptu_file = optarg;
-				output(DEBUG, "option --check-target %s\n", config->ptu_file);
+				config->bin_file = optarg;
+				output(DEBUG, "option --check-target %s\n", config->bin_file);
 			} else if (strcmp(long_options[option_index].name, "update") == 0) {
 				config->update = true;
-				config->ptu_file = optarg;
-				output(DEBUG, "option --update %s\n", config->ptu_file);
+				config->bin_file = optarg;
+				output(DEBUG, "option --update %s\n", config->bin_file);
 			} else if (strcmp(long_options[option_index].name, "verbose")
 					== 0) {
 				output(INFO, "A.14\n");
@@ -323,13 +238,13 @@ static void _parse_args(int argc, char **argv, PtUpdater_Config* config)
 		verbose_level_set(INFO);
 	}
 
-	if (config->ptu_file != NULL && config->ptu_file[0] == '-') {
+	if (config->bin_file != NULL && config->bin_file[0] == '-') {
 		output(FATAL,
 			"\n"
 			"The --update option requires an argument but the\n"
 			"next CLI input value was \"%s\" which starts with a\n"
 			"dash, suggesting that this a separate CLI option.\n",
-			config->ptu_file);
+			config->bin_file);
 		abort();
 		/* NOTREACHED */
 	}
@@ -363,12 +278,6 @@ static void _print_help()
 "       --check-target FILEPATH  Check and display the target firmware\n"
 "                                version by parsing the header of the binary\n"
 "                                image.\n"
-"\n"
-"       --i2c-bus      I2C-BUS   The I2C bus of the Parade touch device,\n"
-"                                which is required for using PIP2\n"
-"                                ROM-Bootloader interface. Therefore, if this\n"
-"                                argument is not provided, then the Secondary\n"
-"                                Loader Image will certainly not be updated.\n"
 "\n"
 "       --update       FILEPATH  Check the active firmware version running on\n"
 "                                the touch processor, and update it if it\n"
@@ -545,13 +454,13 @@ static int _run(const PtUpdater_Config* config)
 	}
 
 	if (config->check_target
-			&& EXIT_SUCCESS != process_fw_file(config->ptu_file, false)) {
+			&& EXIT_SUCCESS != process_fw_file(config->bin_file, false)) {
 		rc = EXIT_FAILURE;
 		goto END;
 	}
 
 	if (config->update
-			&& EXIT_SUCCESS != process_fw_file(config->ptu_file, true)) {
+			&& EXIT_SUCCESS != process_fw_file(config->bin_file, true)) {
 		rc = EXIT_FAILURE;
 		goto END;
 	}
@@ -559,8 +468,7 @@ static int _run(const PtUpdater_Config* config)
 	rc = EXIT_SUCCESS;
 
 END:
-	if (EXIT_SUCCESS != teardown_pip2_api()
-			|| EXIT_SUCCESS != teardown_pip3_api(config->update)) {
+	if (EXIT_SUCCESS != teardown_pip3_api(config->update)) {
 		rc = EXIT_FAILURE;
 	}
 	return rc;
@@ -576,13 +484,6 @@ static int _setup(const PtUpdater_Config* config)
 
 	HID_Descriptor hid_desc;
 	HID_Descriptor* hid_desc_ptr = NULL;
-	if (config->use_i2c_dev) {
-		if (EXIT_SUCCESS != _get_hid_descriptor_via_i2c_dev(config->i2c_bus,
-				config->i2c_addr, &hid_desc)) {
-			return EXIT_FAILURE;
-			/* NOTREACHED */
-		}
-	}
 
 	/* Use default hid descriptor to save time */
 	if (config->check_active) {
@@ -596,40 +497,17 @@ static int _setup(const PtUpdater_Config* config)
 		/* NOTREACHED */
 	}
 
-	if (config->use_i2c_dev) {
-		if (EXIT_SUCCESS != setup_pip2_api(CHANNEL_TYPE_I2CDEV, config->i2c_bus,
-				config->i2c_addr)) {
-			return EXIT_FAILURE;
-			/* NOTREACHED */
-		}
-	} else {
-		output(DEBUG,
-			"PIP2 interface will not be used because the I2C bus was not "
-			"specified.\n");
-	}
-
 	if (EXIT_SUCCESS != setup_pip3_api(&hidraw_channel,
 			HID_REPORT_ID_SOLICITED_RESPONSE)) {
-		if (is_pip2_api_active()) {
-			output(WARNING,
-	"The HIDRAW driver/interface is unavailable/unresponsive, which\n"
-	"\tsuggests that the Parade touch device is stuck in the\n"
-	"\tROM-Bootloader and/or both the Primary and Seconary images have\n"
-	"\tbeen erased/corrupted. PtUpdater can/will use the PIP2 ROM-BL\n"
-	"\tinterface to update all of the touch device's firmware, however,\n"
-	"\tthe host device will need to be restarted to allow the HIDRAW\n"
-	"\tdriver to correctly enumerate.\n");
-		} else {
-			output(ERROR,
+		output(ERROR,
 	"%s: The Parade touch device's firmware cannot be updated via the\n"
 	"\tHIDRAW driver/interface, because it is unavailable/unresponsive\n"
 	"\tThis suggests that the touch device is stuck in the ROM-Bootloader\n"
 	"\tand/or both the Primary and Seconary images have been\n"
 	"\terased/corrupted.\n",
 				__func__);
-			return EXIT_FAILURE;
+		return EXIT_FAILURE;
 			/* NOTREACHED */
-		}
 	}
 
 	return EXIT_SUCCESS;
