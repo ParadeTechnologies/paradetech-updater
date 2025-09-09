@@ -6,13 +6,25 @@
 
 #define HIDRAW_SYSFS_NODE_FILE_MAX_STRLEN 20
 #define REPORT_BUFFER_SIZE 256 
+#define I2C_DEV_BASE_PATH "/sys/bus/i2c/devices"
+#define I2C_DEV_PATH_MAX 1024 
+#define I2C_DEV_NAME_MAX 64 
+#define DELAY_AFTER_DRIVER_UNBIND 100 
+#define DELAY_AFTER_DRIVER_BIND   300 
 
 #define AVG_DELAY_BETWEEN_CMD_AND_RSP 20 
 
 static char hidraw_sysfs_node_file[HIDRAW_SYSFS_NODE_FILE_MAX_STRLEN] =
 		HIDRAW0_SYSFS_NODE_FILE;
 static int hidraw0_fd;
+
 static bool hidraw0_open = false;
+
+static bool self_pipe_create = false;
+
+static bool report_reader_create = false;
+
+static bool report_buffer_create = false;
 
 static int self_pipe_fd[2];
 enum { SELF_PIPE_READ, SELF_PIPE_WRITE };
@@ -52,7 +64,7 @@ static void* _report_reader_thread(void* arg);
 static int _try_hidraw_sysfs_node(char* sysfs_node_file, int vendor_id,
 		int product_id);
 static int _get_hid_descriptor_from_data_block(HID_Descriptor* hid_desc);
-static int _pip_cmd_rsp(const ReportData* report, ReportData* rsp);
+static int _pip_cmd_rsp(ReportData* report, ReportData* rsp);
 
 Channel hidraw_channel = {
 	.type               = CHANNEL_TYPE_HIDRAW,
@@ -131,6 +143,284 @@ RETURN:
 	return sysfs_node_found ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
+
+static bool _is_target_hid_device(const char *i2c_dev_name, int vendor_id,
+								  int product_id)
+{
+	output(DEBUG, "%s: Starting.\n", __func__);
+
+	char i2c_dev_path[I2C_DEV_PATH_MAX] = {0};
+	DIR *hid_name_dir;
+	regex_t regex;
+	bool hid_dir_opened = false;
+	bool hid_name_found = false;
+
+	if (i2c_dev_name == NULL) {
+		output(ERROR, "%s: Invalid pointer of i2c_dev_path.\n", __func__);
+		return hid_name_found;
+	}
+
+	snprintf(i2c_dev_path, I2C_DEV_PATH_MAX,
+			"%s/%s/", I2C_DEV_BASE_PATH, i2c_dev_name);
+	output(DEBUG, "i2c_dev_path: %s\n", i2c_dev_path);
+
+	if (regcomp(&regex, "^[0-9A-F]{4}:[0-9A-F]{4}:[0-9A-F]{4}\\.[0-9]{4}$",
+				REG_EXTENDED | REG_NOSUB)) {
+		output(ERROR, "%s: Failed to compile the regex pattern.\n", __func__);
+		return hid_name_found;
+	}
+
+	hid_name_dir = opendir(i2c_dev_path);
+	if (hid_name_dir == NULL) {
+		output(ERROR, "%s: Failed to open the %s directory. %s [%d]\n",
+			   __func__, hid_name_dir, strerror(errno), errno);
+		goto RETURN;
+	}
+	hid_dir_opened = true;
+
+	while (!hid_name_found) {
+		const struct dirent *dir_entry = readdir(hid_name_dir);
+		if (dir_entry == NULL) {
+			output(INFO, "%s: Failed to read from the %s directory. %s [%d]\n",
+				   __func__, i2c_dev_path, strerror(errno), errno);
+			goto RETURN;
+		}
+
+		if (regexec(&regex, dir_entry->d_name, 0, NULL, 0) == 0) {
+			unsigned int vid, pid;
+			if (sscanf(dir_entry->d_name, "%*4x:%4x:%4x", &vid, &pid) == 2) {
+				output(INFO, "Extracted VID: %04X, PID: %04X\n", vid, pid);
+				if (vid == vendor_id && pid == product_id) {
+					hid_name_found = true;
+					goto RETURN;
+				}
+			} else {
+				output(INFO, "%s: Failed to parse VID and PID from %s.\n",
+					   __func__, dir_entry->d_name);
+			}
+		}
+	}
+
+RETURN:
+	if (hid_dir_opened) {
+		(void)closedir(hid_name_dir);
+	}
+
+	regfree(&regex);
+
+	return hid_name_found;
+}
+
+static int _resolve_driver_link(const char *i2c_dev_name, char *driver_link,
+								char *driver_path)
+{
+	output(DEBUG, "%s: Starting.\n", __func__);
+
+	if (i2c_dev_name == NULL || driver_link == NULL || driver_path == NULL) {
+		output(ERROR,
+			   "%s: Invalid pointer of i2c_dev_name, driver_link or "
+			   "driver_path.\n",
+			   __func__);
+		goto FAIL;
+	}
+
+	char original_cwd[I2C_DEV_PATH_MAX];
+	char cur_path[I2C_DEV_PATH_MAX];
+
+	if (getcwd(original_cwd, sizeof(original_cwd)) == NULL) {
+		output(ERROR, "%s: Failed to get current working directory. %s [%d]\n",
+			   __func__, strerror(errno), errno);
+		goto FAIL;
+	}
+
+	snprintf(cur_path, I2C_DEV_PATH_MAX, "%s/%s", I2C_DEV_BASE_PATH,
+			 i2c_dev_name);
+	if (chdir(cur_path) != 0) {
+		output(ERROR, "%s: Failed to change directory to %s. %s [%d]\n",
+			   __func__, cur_path, strerror(errno), errno);
+		goto FAIL;
+	}
+
+	if (chdir(cur_path) != 0) {
+		output(ERROR, "%s: Failed to change directory to %s. %s [%d]\n",
+			   __func__, cur_path, strerror(errno), errno);
+		goto FAIL;
+	}
+
+	if (realpath(driver_link, driver_path) == NULL) {
+		output(ERROR, "%s: Failed to resolve the driver link %s. %s [%d]\n",
+			   __func__, driver_link, strerror(errno), errno);
+		goto FAIL;
+	}
+
+	if (chdir(original_cwd) != 0) {
+		output(ERROR,
+			   "%s: Failed to change back to original directory %s. %s [%d]\n",
+			   __func__, original_cwd, strerror(errno), errno);
+		goto FAIL;
+	}
+
+	return EXIT_SUCCESS;
+
+FAIL:
+	return EXIT_FAILURE;
+}
+
+static int _try_find_driver_path(const char *i2c_dev_name, char *driver_path)
+{
+	output(DEBUG, "%s: Starting.\n", __func__);
+
+	if (i2c_dev_name == NULL || driver_path == NULL) {
+		output(ERROR, "%s: Invalid pointer of i2c_dev_name or driver_link.\n",
+			   __func__);
+		return EXIT_FAILURE;
+	}
+
+	char driver_path_file[I2C_DEV_PATH_MAX] = {0};
+	char driver_link[I2C_DEV_PATH_MAX] = {0};
+	snprintf(driver_path_file, I2C_DEV_PATH_MAX, "%s/%s/driver",
+			 I2C_DEV_BASE_PATH, i2c_dev_name);
+
+	ssize_t len =
+		readlink(driver_path_file, driver_link, I2C_DEV_PATH_MAX - 1);
+	if (len < 0) {
+		output(DEBUG, "%s: Failed to read the driver link %s. %s [%d]\n",
+			   __func__, driver_path_file, strerror(errno), errno);
+		return EXIT_FAILURE;
+	} else if (len >= I2C_DEV_PATH_MAX) {
+		output(ERROR, "%s: Driver link path is too long.\n", __func__);
+		return EXIT_FAILURE;
+	}
+	driver_link[len] = '\0'; 
+	output(DEBUG, "device_name: %s, driver_link: %s\n",
+		i2c_dev_name, driver_link);
+
+	return _resolve_driver_link(i2c_dev_name, driver_link, driver_path);
+}
+
+static int auto_detect_hid_dut(int vid, int pid, char *i2c_dev_name, char *driver_path)
+{
+	output(DEBUG, "%s: Starting.\n", __func__);
+
+	if (i2c_dev_name == NULL || driver_path == NULL) {
+		output(ERROR, "%s: Invalid pointer of i2c_dev_path or driver_path.\n",
+			   __func__);
+		return EXIT_FAILURE;
+	}
+
+	char tmp_driver_path[I2C_DEV_PATH_MAX] = {0};
+	DIR *dev_dir;
+	bool dev_dir_opened = false;
+	bool hid_dut_found = false;
+
+	dev_dir = opendir(I2C_DEV_BASE_PATH);
+	if (dev_dir == NULL) {
+		output(ERROR, "%s: Failed to open the %s directory. %s [%d]\n",
+			   __func__, I2C_DEV_BASE_PATH, strerror(errno), errno);
+		goto RETURN;
+	}
+	dev_dir_opened = true;
+
+	while (!hid_dut_found) {
+		const struct dirent *dev_dir_entry = readdir(dev_dir);
+		if (dev_dir_entry == NULL) {
+			output(ERROR,
+				   "%s: Failed to read from the /dev/ directory. %s [%d]\n",
+				   __func__, strerror(errno), errno);
+			goto RETURN;
+		}
+
+		if (dev_dir_entry->d_name[0] == '.') {
+			continue;
+		}
+
+		if (EXIT_SUCCESS !=
+			_try_find_driver_path(dev_dir_entry->d_name, tmp_driver_path)) {
+			output(DEBUG, "%s: Failed to find driver path for %s.\n", __func__,
+				   dev_dir_entry->d_name);
+			continue; 
+		}
+
+		if (_is_target_hid_device(dev_dir_entry->d_name, vid, pid)) {
+			strlcpy(i2c_dev_name, dev_dir_entry->d_name, I2C_DEV_NAME_MAX);
+			strlcpy(driver_path, tmp_driver_path, I2C_DEV_PATH_MAX);
+			hid_dut_found = true;
+			goto RETURN;
+		}
+	}
+
+RETURN:
+	if (hid_dut_found) {
+		output(DEBUG, "Detected HID device name: %s\n", i2c_dev_name);
+		output(DEBUG, "Detected HID driver path: %s\n", driver_path);
+	} else {
+		output(ERROR,
+			   "%s: No HID device found with VID: 0x%04X and PID: 0x%04X.\n",
+			   __func__, vid, pid);
+	}
+
+	if (dev_dir_opened) {
+		(void)closedir(dev_dir);
+	}
+
+	return hid_dut_found ? EXIT_SUCCESS : EXIT_FAILURE;
+}
+
+int rebind_hid_driver(int vid, int pid)
+{
+	output(DEBUG, "%s: Starting.\n", __func__);
+
+	char i2c_dev_name[I2C_DEV_NAME_MAX] = {0};
+	char driver_path[I2C_DEV_PATH_MAX] = {0};
+	char driver_unbind[I2C_DEV_PATH_MAX] = {0};
+	char driver_bind[I2C_DEV_PATH_MAX] = {0};
+
+	if (EXIT_SUCCESS != auto_detect_hid_dut(vid, pid, i2c_dev_name, driver_path)) {
+		return EXIT_FAILURE;
+	}
+
+	output(INFO, "Rebinding HID driver for %s to %s\n", i2c_dev_name, driver_path);
+
+	snprintf(driver_unbind, I2C_DEV_PATH_MAX, "%s/unbind", driver_path);
+	output(DEBUG, "Driver unbind path: %s\n", driver_unbind);
+
+	FILE *fp = fopen(driver_unbind, "w");
+	if (fp == NULL) {
+		output(ERROR, "%s: Failed to open %s for writing. %s [%d]\n",
+			   __func__, driver_unbind, strerror(errno), errno);
+		return EXIT_FAILURE;
+	}
+	if (fprintf(fp, "%s", i2c_dev_name) < 0) {
+		output(ERROR, "%s: Failed to write to %s. %s [%d]\n",
+			   __func__, driver_unbind, strerror(errno), errno);
+		fclose(fp);
+		return EXIT_FAILURE;
+	}
+	fclose(fp);
+
+	sleep_ms(DELAY_AFTER_DRIVER_UNBIND);
+
+	snprintf(driver_bind, I2C_DEV_PATH_MAX, "%s/bind", driver_path);
+	output(DEBUG, "Driver bind path: %s\n", driver_bind);
+	fp = fopen(driver_bind, "w");
+	if (fp == NULL) {
+		output(ERROR, "%s: Failed to open %s for writing. %s [%d]\n",
+			   __func__, driver_bind, strerror(errno), errno);
+		return EXIT_FAILURE;
+	}
+	if (fprintf(fp, "%s", i2c_dev_name) < 0) {
+		output(ERROR, "%s: Failed to write to %s. %s [%d]\n",
+			   __func__, driver_bind, strerror(errno), errno);
+		fclose(fp);
+		return EXIT_FAILURE;
+	}
+	fclose(fp);
+
+	sleep_ms(DELAY_AFTER_DRIVER_BIND);
+
+	return EXIT_SUCCESS;
+}
+
 void clear_hidraw_report_buffer()
 {
 	output(DEBUG, "%s: Starting.\n", __func__);
@@ -148,14 +438,6 @@ void clear_hidraw_report_buffer()
 int get_hid_descriptor_from_hidraw(HID_Descriptor* hid_desc)
 {
 	output(DEBUG, "%s: Starting.\n", __func__);
-	int fd;
-	bool file_opened = false;
-	int max_input_len;
-	int max_output_len;
-	int rc = EXIT_FAILURE;
-	int read_rc;
-	int rpt_desc_size;
-	struct hidraw_devinfo dev_info;
 
 	if (hid_desc == NULL) {
 		output(ERROR, "%s: NULL argument provided.\n", __func__);
@@ -181,7 +463,6 @@ COPY:
 static int _get_hid_descriptor_from_data_block(HID_Descriptor* hid_desc)
 {
 	output(DEBUG, "%s: Starting.\n", __func__);
-	int fd;
 
 	uint8_t suspend_scan_cmd_data[] = {
 			0x04, 0x06, 0x00, 0x08, 0x33, 0x2C, 0xC0};
@@ -207,7 +488,6 @@ static int _get_hid_descriptor_from_data_block(HID_Descriptor* hid_desc)
 			.len  = sizeof(get_data_block_cmd_data)
 	};
 
-	uint8_t get_data_block_rsp_data[HID_MAX_INPUT_REPORT_SIZE];
 	ReportData get_data_block_rsp = {
 			.data = get_data_block_cmd_data,
 			.max_len = HID_MAX_INPUT_REPORT_SIZE
@@ -221,7 +501,7 @@ static int _get_hid_descriptor_from_data_block(HID_Descriptor* hid_desc)
 	return EXIT_SUCCESS;
 }
 
-static int _pip_cmd_rsp(const ReportData* report, ReportData* rsp)
+static int _pip_cmd_rsp(ReportData* report, ReportData* rsp)
 {
 	output(DEBUG, "%s: Starting.\n", __func__);
 
@@ -483,6 +763,7 @@ int start_hidraw_report_reader(HID_Report_ID report_id)
 		rc = EXIT_FAILURE;
 		goto RETURN;
 	}
+	self_pipe_create = true;
 
 	stop_reading = false;
 
@@ -497,6 +778,7 @@ int start_hidraw_report_reader(HID_Report_ID report_id)
 			goto RETURN;
 		}
 	}
+	report_buffer_create = true;
 
 	if (0 != pthread_create(&report_reader_tid, NULL, _report_reader_thread,
 			(void*) &report_id)) { 
@@ -507,6 +789,7 @@ int start_hidraw_report_reader(HID_Report_ID report_id)
 		rc = EXIT_FAILURE;
 		goto RETURN;
 	}
+	report_reader_create = true;
 
 	while (report_reader_thread_status
 			== REPORT_READER_THREAD_STATUS_NOT_STARTED)
@@ -519,12 +802,16 @@ RETURN:
 		stop_hidraw_report_reader();
 	}
 
-	return EXIT_SUCCESS;
+	return rc;
 }
 
 int stop_hidraw_report_reader()
 {
 	output(DEBUG, "%s: Starting.\n", __func__);
+	int rc = EXIT_SUCCESS;
+
+	if (!hidraw0_open || !self_pipe_create)
+		return EXIT_SUCCESS;
 
 	stop_reading = true;
 
@@ -536,32 +823,41 @@ int stop_hidraw_report_reader()
 	while (!time_limit_reached(&start_time, 5) &&
 	    report_reader_thread_status != REPORT_READER_THREAD_STATUS_EXIT);
 
-	int rc = 0;
-	rc = pthread_join(report_reader_tid, NULL);
-	if (rc == 0) {
-		output(DEBUG,
-			"The thread reading HIDRAW reports is terminated.\n");
-	} else if (rc == ESRCH) {
-		output(DEBUG,
-			"The thread reading HIDRAW reports has already terminated.\n");
-	} else {
-		output(ERROR,
-			"%s: Failed to stop thread reading HIDRAW reports. %s [%d]\n",
-				__func__, strerror(rc), rc);
+	if (report_reader_create) {
+		report_reader_create = false;
+
+		rc = pthread_join(report_reader_tid, NULL);
+		if (rc == 0) {
+			output(DEBUG,
+				"The thread reading HIDRAW reports is terminated.\n");
+		} else if (rc == ESRCH) {
+			rc = EXIT_SUCCESS;
+			output(DEBUG,
+				"The thread reading HIDRAW reports has already terminated.\n");
+		} else {
+			output(ERROR,
+				"%s: Failed to stop thread reading HIDRAW reports. %s [%d]\n",
+					__func__, strerror(rc), rc);
+		}
 	}
 
-	for (int i = 0; i < REPORT_BUFFER_SIZE; i++) {
-		free(report_buffer[i].report.data);
-		report_buffer[i].report.data = NULL;
-		report_buffer[i].ready = false;
+	if (report_buffer_create) {
+		report_buffer_create = false;
+
+		for (int i = 0; i < REPORT_BUFFER_SIZE; i++) {
+			free(report_buffer[i].report.data);
+			report_buffer[i].report.data = NULL;
+			report_buffer[i].ready = false;
+		}
 	}
 
 	close(hidraw0_fd);
 	hidraw0_open = false;
 	close(self_pipe_fd[SELF_PIPE_READ]);
 	close(self_pipe_fd[SELF_PIPE_WRITE]);
+	self_pipe_create = false;
 
-	return EXIT_SUCCESS;
+	return rc;
 }
 
 static Poll_Status _consume_report(HID_Report_ID target_report_id,

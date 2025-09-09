@@ -41,6 +41,7 @@ extern void kmsg_written_clear();
 extern void kmsg_written_set();
 extern void logging_fp_csv_file_clear();
 extern void logging_fp_csv_file_set(FILE *file);
+extern void enable_csv_debug_logging_set(bool enable);
 extern void logging_fp_daemon_log_file_clear();
 extern void logging_fp_daemon_log_file_set(FILE *file);
 extern void output(int type, const char *fmt, ...);

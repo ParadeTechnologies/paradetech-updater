@@ -9,6 +9,7 @@
 static int verbose_level = 1;
 static FILE *fp_csv_file = NULL;
 static FILE *fp_daemon_log_file = NULL;
+static bool csv_debug_logging_enabled;
 
 static bool kmsg_written = false;
 
@@ -23,6 +24,10 @@ static bool show_timestamp_nolevel_noprefix = false;
 
 void logging_fp_csv_file_set(FILE *file) {
 	fp_csv_file = file;
+}
+
+void enable_csv_debug_logging_set(bool enable){
+	csv_debug_logging_enabled = enable;
 }
 
 void logging_fp_csv_file_clear() {
@@ -163,22 +168,42 @@ void _output_csv(int type, char *message)
 	char prefix_csv[PREFIX_CSV_LEN] = "";
 	bool print_csv = true;
 
-	if (type == QUIET) {
-		print_csv = false;
-	} else if (type == FATAL) {
-		strlcpy(prefix_csv, ".FATAL,", PREFIX_CSV_LEN);
-	} else if (type == RESULT) {
-		print_csv = false;
-	} else if (type == ERROR) {
-		strlcpy(prefix_csv, ".ERROR,", PREFIX_CSV_LEN);
-	} else if (type == WARNING) {
-		strlcpy(prefix_csv, ".WARNING,", PREFIX_CSV_LEN);
-	} else if (type == INFO) {
-		print_csv = false;
-	} else if (type >= DEBUG) {
-		print_csv = false;
-	} else {
-		print_csv = false;
+	switch (type) {
+		case QUIET:
+		case RESULT:
+			print_csv = false;
+			break;
+
+		case FATAL:
+			strlcpy(prefix_csv, ".FATAL,", PREFIX_CSV_LEN);
+			break;
+
+		case ERROR:
+			strlcpy(prefix_csv, ".ERROR,", PREFIX_CSV_LEN);
+			break;
+
+		case WARNING:
+			strlcpy(prefix_csv, ".WARNING,", PREFIX_CSV_LEN);
+			break;
+		case INFO:
+			if (csv_debug_logging_enabled && verbose_level >= DEBUG) {
+				strlcpy(prefix_csv, ".INFO,", PREFIX_CSV_LEN);
+			} else {
+				print_csv = false;
+			}
+			break;
+
+		case DEBUG:
+			if (csv_debug_logging_enabled && verbose_level >= DEBUG) {
+				strlcpy(prefix_csv, ".DEBUG,", PREFIX_CSV_LEN);
+			} else {
+				print_csv = false;
+			}
+			break;
+
+		default:
+			print_csv = false;
+			break;
 	}
 
 	if(print_csv) {

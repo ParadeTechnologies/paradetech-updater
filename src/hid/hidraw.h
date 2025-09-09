@@ -33,5 +33,5 @@ extern int init_input_report(ReportData* report);
 extern int send_report_via_hidraw(const ReportData* report);
 extern int start_hidraw_report_reader(HID_Report_ID report_id);
 extern int stop_hidraw_report_reader();
-
+extern int rebind_hid_driver(int vid, int pid);
 #endif 

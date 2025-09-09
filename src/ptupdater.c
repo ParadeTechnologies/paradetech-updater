@@ -6,12 +6,13 @@
 #include "fw_version.h"
 #include "hid/hidraw.h"
 
-#define SW_VERSION "0.7.0"
+#define SW_VERSION "0.7.1"
 
 typedef struct {
 	bool check_active;
 	bool check_target;
 	bool update;
+	bool calibrate;
 	char* hidraw_sysfs_node_file;
 	char* bin_file;
 } PtUpdater_Config;
@@ -29,6 +30,7 @@ int main(int argc, char **argv)
 		.check_active = false,
 		.check_target = false,
 		.update = false,
+		.calibrate = false,
 		.hidraw_sysfs_node_file = NULL,
 		.bin_file = NULL,
 	};
@@ -56,7 +58,7 @@ int main(int argc, char **argv)
 	 */
 	_parse_args(argc, argv, &config);
 
-	if ((config.check_active || config.update) &&
+	if ((config.check_active || config.update || config.calibrate) &&
 	    (config.hidraw_sysfs_node_file == NULL)) {
 		output(FATAL,
 			"Must provide the HIDRAW node path as the first argument.\n");
@@ -84,7 +86,7 @@ int main(int argc, char **argv)
      * the DUT. So unless the '--check-active' and/or '--update' options, there
 	 * is no need to initialize the HIDRAW and PIP3 APIs.
 	 */
-	if ((config.check_active || config.update)
+	if ((config.check_active || config.update || config.calibrate)
 			&& EXIT_SUCCESS != _setup(&config)) {
 		exit(EXIT_FAILURE);
 		/* NOTREACHED */
@@ -120,7 +122,7 @@ static void _parse_args(int argc, char **argv, PtUpdater_Config* config)
 			 */
 			{"check-active", no_argument, 0, },
 			{"version",      no_argument, 0, },
-
+			{"calibrate",    no_argument, 0, },
 			/*
 			 * Options that set a flag which have both short and
 			 * long forms. Make sure that each of the single
@@ -177,6 +179,10 @@ static void _parse_args(int argc, char **argv, PtUpdater_Config* config)
 			} else if (strcmp(long_options[option_index].name, "version")
 					== 0) {
 				version_flag = true;
+			} else if (strcmp(long_options[option_index].name, "calibrate")
+					== 0) {
+				config->calibrate = true;
+				output(DEBUG, "option --calibrate\n");
 			}
 			break;
 
@@ -249,7 +255,8 @@ static void _parse_args(int argc, char **argv, PtUpdater_Config* config)
 		/* NOTREACHED */
 	}
 
-	if (!config->check_active && !config->check_target && !config->update) {
+	if (!config->check_active && !config->check_target
+		&& !config->update && !config->calibrate) {
 		_print_help();
 		exit(EXIT_FAILURE);
 		/* NOTREACHED */
@@ -317,12 +324,10 @@ static void _print_help()
 }
 
 #define PRIMARY_FW_FILE_ID  (1)
-#define CONFIG_FILE_ID      (3)
-#define CALIBRATION_FILE_ID (5)
 
 /* STATIC FILE ID LIST TO ERASE */
 static uint8_t flash_files_to_erase_id_list[] ={
-	CONFIG_FILE_ID, CALIBRATION_FILE_ID
+	0x00
 };
 
 static const ByteData flash_files_to_erase = {
@@ -438,7 +443,7 @@ CLOSE_FILE:
 static int _run(const PtUpdater_Config* config)
 {
 	output(DEBUG, "%s: Starting.\n", __func__);
-	int rc = EXIT_FAILURE;
+	int rc = EXIT_SUCCESS;
 
 	if (config->check_active) {
 		FW_Version active_version;
@@ -453,19 +458,32 @@ static int _run(const PtUpdater_Config* config)
 			active_version.config_ver);
 	}
 
-	if (config->check_target
-			&& EXIT_SUCCESS != process_fw_file(config->bin_file, false)) {
+	if (config->check_target &&
+		EXIT_SUCCESS != process_fw_file(config->bin_file, false)) {
 		rc = EXIT_FAILURE;
 		goto END;
 	}
 
-	if (config->update
-			&& EXIT_SUCCESS != process_fw_file(config->bin_file, true)) {
+	if (config->update &&
+		EXIT_SUCCESS != process_fw_file(config->bin_file, true)) {
 		rc = EXIT_FAILURE;
 		goto END;
 	}
 
-	rc = EXIT_SUCCESS;
+	if (config->calibrate) {
+		if (EXIT_SUCCESS != set_dut_state(DUT_STATE_TP_FW_SCANNING))
+		{
+			rc = EXIT_FAILURE;
+			output(ERROR,
+				"Failed to enter scanning mode, calibration is skipped\n");
+			goto END;
+		}
+
+		if (EXIT_SUCCESS != calibrate_dut()) {
+			rc = EXIT_FAILURE;
+			goto END;
+		}
+	}
 
 END:
 	if (EXIT_SUCCESS != teardown_pip3_api(config->update)) {

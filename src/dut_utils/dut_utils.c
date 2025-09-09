@@ -4,10 +4,11 @@
 
 #include "dut_utils.h"
 
-#define FW_SELF_TEST_OUTPUT_FORMAT_U8    1
-#define FW_SELF_TEST_OUTPUT_FORMAT_U16   2
+#define FW_SELF_TEST_OUTPUT_FORMAT_U8     1
+#define FW_SELF_TEST_OUTPUT_FORMAT_U16    2
 
-#define EXIT_ALREADY_IN_REQUESTED_STATE 2
+#define EXIT_ALREADY_IN_REQUESTED_STATE   2
+#define WAIT_ENUM_READY_FOR_HIDRAW_DRV_MS 100
 
 #define MAX_NUM_OF_BYTES_PER_SENSOR  8
 
@@ -1187,6 +1188,8 @@ static int _set_dut_state_tp_fw_scanning()
 			active_dut_state = DUT_STATE_INVALID;
 			return EXIT_FAILURE;
 		}
+
+		sleep_ms(WAIT_ENUM_READY_FOR_HIDRAW_DRV_MS);
 
 		if (EXIT_SUCCESS != _verify_fw_category(PIP3_FW_CATEGORY_ID_TOUCH_FW)) {
 			active_dut_state = DUT_STATE_INVALID;
