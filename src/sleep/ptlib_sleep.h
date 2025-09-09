@@ -16,4 +16,4 @@ extern void sleep_ms (unsigned int ms);
 extern void sleep_us (unsigned int us);
 extern bool time_limit_reached(const struct timeval* start, long double limit);
 
-#endif 
+#endif

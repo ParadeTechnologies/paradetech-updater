@@ -7,7 +7,7 @@
 
 #include "logging.h"
 
-#define TOUCH_REPORT_VALUE_HEX_FORMAT_STRLEN 3 
+#define TOUCH_REPORT_VALUE_HEX_FORMAT_STRLEN 3
 
 #define REPORT_DIRECTION_INCOMING_FROM_HOST "Incoming from host"
 #define REPORT_DIRECTION_INCOMING_FROM_DUT  "Incoming from DUT"
@@ -33,9 +33,9 @@ typedef enum {
 
 typedef enum {
 	TOUCH_STANDARD_FINGER,
-	TOUCH_PROXIMITY,       
+	TOUCH_PROXIMITY,
 	TOUCH_STYLUS,
-	TOUCH_HOVER,           
+	TOUCH_HOVER,
 	TOUCH_GLOVE,
 	TOUCH_INVALID,
 	NUM_OF_TOUCH_TYPES
@@ -63,4 +63,4 @@ extern void log_report_data(const ReportData* report, bool include_timestamp,
 		char* label);
 extern int write_report(const ReportData* report, const char* filepath);
 
-#endif 
+#endif

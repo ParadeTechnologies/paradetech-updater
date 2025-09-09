@@ -34,7 +34,7 @@ DUT_Driver get_dut_driver()
 		goto RETURN;
 	}
 
-	errno = 0; 
+	errno = 0;
 	dir = opendir(KERNEL_DRIVER_PATH);
 	if (dir == NULL) {
 		output(ERROR, "%s: Failed to open \"%s\". %s [%d].\n", __func__,

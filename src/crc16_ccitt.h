@@ -11,4 +11,4 @@
 extern uint16_t calculate_crc16_ccitt(uint16_t seed, uint8_t *data,
 		size_t length);
 
-#endif 
+#endif

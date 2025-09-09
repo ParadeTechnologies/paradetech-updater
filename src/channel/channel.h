@@ -29,4 +29,4 @@ typedef struct {
 	int (*teardown)();
 } Channel;
 
-#endif 
+#endif

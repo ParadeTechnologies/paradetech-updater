@@ -53,16 +53,16 @@ extern char* PIP2_IOCTL_CODE_LABELS[NUM_OF_PIP2_IOCTL_CODES];
 #define PIP2_PAYLOAD_MAX_LEN 0xFFFF
 
 typedef struct {
-	uint8_t cmd_reg_lsb;                
-	uint8_t cmd_reg_msb;                
-	uint8_t payload_len_lsb;            
-	uint8_t payload_len_msb;            
-	struct {                            
+	uint8_t cmd_reg_lsb;
+	uint8_t cmd_reg_msb;
+	uint8_t payload_len_lsb;
+	uint8_t payload_len_msb;
+	struct {
 		uint8_t seq                : 3;
 		uint8_t tag                : 1;
 		uint8_t reserved_section_1 : 4;
 	} __attribute__((packed));
-	struct {                            
+	struct {
 		uint8_t cmd_id : 7;
 		uint8_t resp   : 1;
 	} __attribute__((packed));
@@ -76,18 +76,18 @@ typedef struct {
 #define PIP2_RSP_MIN_LEN 7
 
 typedef struct {
-	uint8_t payload_len_lsb;            
-	uint8_t payload_len_msb;            
-	struct {                            
+	uint8_t payload_len_lsb;
+	uint8_t payload_len_msb;
+	struct {
 		uint8_t seq                : 3;
 		uint8_t tag                : 1;
 		uint8_t reserved_section_1 : 4;
 	} __attribute__((packed));
-	struct {                            
+	struct {
 		uint8_t cmd_id : 7;
 		uint8_t resp   : 1;
 	} __attribute__((packed));
-	uint8_t status_code;                
+	uint8_t status_code;
 } __attribute__((packed)) PIP2_Rsp_Header;
 
 typedef struct {
@@ -188,17 +188,17 @@ typedef struct {
 } __attribute__((packed)) PIP2_Cmd_Payload_Status;
 
 typedef struct {
-	PIP2_Rsp_Header header;             
-	struct {                            
+	PIP2_Rsp_Header header;
+	struct {
 		uint8_t exec               : 1;
 		uint8_t reserved_section_2 : 7;
 	} __attribute__((packed));
-	uint8_t sys_mode;                   
-	struct {                            
+	uint8_t sys_mode;
+	struct {
 		uint8_t protocol_mode      : 3;
 		uint8_t reserved_section_3 : 5;
 	} __attribute__((packed));
-	uint8_t reserved_section_4;         
+	uint8_t reserved_section_4;
 	PIP2_Rsp_Footer footer;
 } __attribute__((packed)) PIP2_Rsp_Payload_Status;
 
@@ -225,4 +225,4 @@ extern int setup_pip2_api(ChannelType channel_type, int i2c_bus_arg,
 		int i2c_addr_arg);
 extern int teardown_pip2_api();
 
-#endif 
+#endif

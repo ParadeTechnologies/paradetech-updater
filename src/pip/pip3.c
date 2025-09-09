@@ -4,9 +4,9 @@
 
 #include "pip3.h"
 
-#define AVG_DELAY_BETWEEN_CMD_AND_RSP 5 
+#define AVG_DELAY_BETWEEN_CMD_AND_RSP 5
 
-#define MAX_TIMEOUT_BETWEEN_CMD_AND_RSP 7 
+#define MAX_TIMEOUT_BETWEEN_CMD_AND_RSP 7
 
 #define MAX_SEQ_NUM 0x07
 
@@ -138,7 +138,7 @@ int do_pip3_command(ReportData* cmd, ReportData* rsp)
 				output_debug_report(REPORT_DIRECTION_INCOMING_FROM_DUT,
 					REPORT_FORMAT_HID, PIP3_CMD_NAMES[output_report->cmd_id],
 					REPORT_TYPE_RESPONSE, &rsp_report);
-				more_reports = true; 
+				more_reports = true;
 				continue;
 			}
 			detected_first_rpt = true;

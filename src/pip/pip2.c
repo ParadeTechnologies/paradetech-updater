@@ -4,11 +4,11 @@
 
 #include "pip2.h"
 
-#define AVG_DELAY_BETWEEN_CMD_AND_RSP 5 
-#define FILE_IOCTL_ERASE_DELAY_BETWEEN_CMD_AND_RSP 3 
+#define AVG_DELAY_BETWEEN_CMD_AND_RSP 5
+#define FILE_IOCTL_ERASE_DELAY_BETWEEN_CMD_AND_RSP 3
 
-#define MAX_TIMEOUT_BETWEEN_CMD_AND_RSP 3 
-#define DELAY_FOR_RESET  2 
+#define MAX_TIMEOUT_BETWEEN_CMD_AND_RSP 3
+#define DELAY_FOR_RESET  2
 
 #define MAX_SEQ_NUM 0x07
 
@@ -681,7 +681,7 @@ int setup_pip2_api(ChannelType channel_type, int i2c_bus_arg, int i2c_addr_arg)
 		return EXIT_SUCCESS;
 	}
 
-	switch (channel_type) { 
+	switch (channel_type) {
 	case CHANNEL_TYPE_I2CDEV:
 		i2c_bus = i2c_bus_arg;
 		i2c_addr = i2c_addr_arg;
@@ -761,7 +761,7 @@ static int _send_report_via_i2cdev(const ReportData* report)
 }
 
 static Poll_Status _get_report_from_i2cdev(ReportData* report,
-		bool apply_timeout, long double timeout_val 
+		bool apply_timeout, long double timeout_val
 		)
 {
 	output(DEBUG, "%s: Starting.\n", __func__);

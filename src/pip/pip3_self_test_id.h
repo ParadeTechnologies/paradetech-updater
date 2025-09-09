@@ -41,12 +41,12 @@ typedef enum {
 } PIP3_Data_Format_ID;
 
 typedef enum {
-	PIP3_DATA_UNIT_ID_NANOAMPS            = 0x0, 
-	PIP3_DATA_UNIT_ID_100THS_OF_PICOFARAD = 0x1, 
-	PIP3_DATA_UNIT_ID_COUNTS              = 0x2, 
-	PIP3_DATA_UNIT_ID_PASS_OR_FAIL        = 0x3, 
+	PIP3_DATA_UNIT_ID_NANOAMPS            = 0x0,
+	PIP3_DATA_UNIT_ID_100THS_OF_PICOFARAD = 0x1,
+	PIP3_DATA_UNIT_ID_COUNTS              = 0x2,
+	PIP3_DATA_UNIT_ID_PASS_OR_FAIL        = 0x3,
 
 	NUM_OF_PIP3_DATA_UNIT_IDS = 4
 } PIP3_Data_Unit_ID;
 
-#endif 
+#endif

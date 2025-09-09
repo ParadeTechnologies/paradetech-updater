@@ -50,4 +50,4 @@ typedef enum {
 extern void set_aux_mcu_active_duration_seconds(uint8_t duration);
 extern uint8_t get_aux_mcu_active_duration_seconds();
 
-#endif 
+#endif

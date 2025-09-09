@@ -79,7 +79,7 @@ bool timestamp_level_get(enum verbose_levels level)
 	}
 }
 
-void timestamp_level_set( 
+void timestamp_level_set(
 		bool fatal, bool result, bool error, bool warning,
 		bool info, bool debug, bool ptc, bool nolevel_noprefix)
 {
@@ -254,7 +254,7 @@ void _output_kmsg(int type, char *message)
 }
 
 void output(int type, const char *fmt,
-		... 
+		...
 		)
 {
 	int errno_backup = errno;

@@ -86,16 +86,16 @@ typedef enum {
 extern char* PIP3_PROCESSOR_NAMES[NUM_OF_PIP3_PROCESSOR_IDS];
 
 typedef struct {
-	uint8_t report_id;                  
-	uint8_t payload_len_lsb;            
-	uint8_t payload_len_msb;            
-	struct {                            
+	uint8_t report_id;
+	uint8_t payload_len_lsb;
+	uint8_t payload_len_msb;
+	struct {
 		uint8_t seq                : 3;
 		uint8_t tag                : 1;
 		uint8_t more_data          : 1;
 		uint8_t reserved_section_1 : 3;
 	} __attribute__((packed));
-	struct {                            
+	struct {
 		uint8_t cmd_id : 7;
 		uint8_t resp   : 1;
 	} __attribute__((packed));
@@ -109,19 +109,19 @@ typedef struct {
 #define PIP3_RSP_MIN_LEN 7
 
 typedef struct {
-	uint8_t payload_len_lsb;            
-	uint8_t payload_len_msb;            
-	struct {                            
+	uint8_t payload_len_lsb;
+	uint8_t payload_len_msb;
+	struct {
 		uint8_t seq                : 3;
 		uint8_t tag                : 1;
 		uint8_t more_data          : 1;
 		uint8_t reserved_section_1 : 3;
 	} __attribute__((packed));
-	struct {                            
+	struct {
 		uint8_t cmd_id : 7;
 		uint8_t resp   : 1;
 	} __attribute__((packed));
-	uint8_t status_code;                
+	uint8_t status_code;
 } __attribute__((packed)) PIP3_Rsp_Header;
 
 typedef struct {
@@ -260,15 +260,15 @@ typedef struct {
 } __attribute__((packed)) PIP3_Cmd_Payload_GetSelfTestResults;
 
 typedef struct {
-	PIP3_Rsp_Header header;             
-	uint8_t self_test_id;               
-	struct {                            
+	PIP3_Rsp_Header header;
+	uint8_t self_test_id;
+	struct {
 		uint8_t data_format_id : 4;
 		uint8_t data_unit_id   : 4;
 	} __attribute__((packed));
-	uint8_t arl_lsb;                    
-	uint8_t arl_msb;                    
-	uint8_t* data;                      
+	uint8_t arl_lsb;
+	uint8_t arl_msb;
+	uint8_t* data;
 	PIP3_Rsp_Footer footer;
 } __attribute__((packed)) PIP3_Rsp_Payload_GetSelfTestResults;
 
@@ -277,7 +277,7 @@ typedef struct {
 	PIP3_Cmd_Footer footer;
 } __attribute__((packed)) PIP3_Cmd_Payload_GetSysinfo;
 
-typedef struct { 
+typedef struct {
 
 	PIP3_Rsp_Header header;
 
@@ -414,18 +414,18 @@ typedef struct {
 } __attribute__((packed)) PIP3_Cmd_Payload_Status;
 
 typedef struct {
-	PIP3_Rsp_Header header;             
-	struct {                            
+	PIP3_Rsp_Header header;
+	struct {
 		uint8_t exec               : 1;
 		uint8_t active_processor   : 2;
 		uint8_t reserved_section_2 : 5;
 	} __attribute__((packed));
-	uint8_t sys_mode;                   
-	struct {                            
+	uint8_t sys_mode;
+	struct {
 		uint8_t protocol_mode      : 3;
 		uint8_t reserved_section_3 : 5;
 	} __attribute__((packed));
-	uint8_t reserved_section_4;         
+	uint8_t reserved_section_4;
 	PIP3_Rsp_Footer footer;
 } __attribute__((packed)) PIP3_Rsp_Payload_Status;
 
@@ -544,4 +544,4 @@ extern bool is_pip3_api_active();
 extern int setup_pip3_api(Channel* channel, HID_Report_ID report_id);
 extern int teardown_pip3_api(bool force_scanning);
 
-#endif 
+#endif

@@ -42,4 +42,4 @@ extern int flash_file_crc(uint8_t file_num, uint32_t offset, uint32_t length, ui
 extern int flash_file_read(uint8_t file_num, uint16_t length, uint8_t* data);
 extern int get_data_block(PIP3_Data_Block_ID data_block_id, ByteData* data_block, size_t max_len);
 
-#endif 
+#endif

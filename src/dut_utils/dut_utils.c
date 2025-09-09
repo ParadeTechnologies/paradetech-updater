@@ -851,7 +851,7 @@ static int _set_dut_state_aux_mcu()
 {
 	output(DEBUG, "%s: Starting.\n", __func__);
 
-	errno = 0; 
+	errno = 0;
 
 	if (active_dut_state == DUT_STATE_AUX_MCU_FW_PROGRAMMER_IMAGE
 			|| active_dut_state == DUT_STATE_AUX_MCU_FW_UTILITY_IMAGE) {

@@ -23,4 +23,4 @@ extern int file_insert(char *source_file_path, char *working_dir,
 		char *string_to_insert);
 extern Poll_Status fpoll_inbound_data(FILE* fptr, time_t timeout);
 
-#endif 
+#endif

@@ -4,22 +4,22 @@
 
 #include "ptlib_file.h"
 
-int file_copy(char *copy_from_path, char *copy_to_path) {    
+int file_copy(char *copy_from_path, char *copy_to_path) {
     int result = 1;
 	const unsigned int read_size = 256;
 	unsigned char read_ch[read_size];
 	int tot_bytes = 0;
 	size_t read_ret;
 	size_t write_ret;
-    
+
     errno = 0;
-    
+
     FILE* to_fptr = fopen(copy_to_path, "wb");
     if(to_fptr == NULL) {
         output(ERROR, "%s: %s\n", copy_to_path, strerror( errno ));
         goto END;
     }
-    
+
     FILE* from_fptr = fopen(copy_from_path, "rb");
     if(from_fptr == NULL) {
         output(ERROR, "%s: %s\n", copy_from_path, strerror( errno ));
@@ -178,7 +178,7 @@ int file_insert(char *source_file, char *working_dir, char *regex_str,
 		rc = 1;
 		goto END;
 	}
-	unlink(source_file_path); 
+	unlink(source_file_path);
 	if (rename(tmp_file_path, source_file_path) < 0) {
 		output(ERROR, "Renaming temporary file failed. Temporary file\n");
 		output(ERROR, "may be found at: %s\n", tmp_file_path);

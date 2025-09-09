@@ -5,14 +5,14 @@
 #include "hidraw.h"
 
 #define HIDRAW_SYSFS_NODE_FILE_MAX_STRLEN 20
-#define REPORT_BUFFER_SIZE 256 
+#define REPORT_BUFFER_SIZE 256
 #define I2C_DEV_BASE_PATH "/sys/bus/i2c/devices"
-#define I2C_DEV_PATH_MAX 1024 
-#define I2C_DEV_NAME_MAX 64 
-#define DELAY_AFTER_DRIVER_UNBIND 100 
-#define DELAY_AFTER_DRIVER_BIND   300 
+#define I2C_DEV_PATH_MAX 1024
+#define I2C_DEV_NAME_MAX 64
+#define DELAY_AFTER_DRIVER_UNBIND 100
+#define DELAY_AFTER_DRIVER_BIND   300
 
-#define AVG_DELAY_BETWEEN_CMD_AND_RSP 20 
+#define AVG_DELAY_BETWEEN_CMD_AND_RSP 20
 
 static char hidraw_sysfs_node_file[HIDRAW_SYSFS_NODE_FILE_MAX_STRLEN] =
 		HIDRAW0_SYSFS_NODE_FILE;
@@ -291,7 +291,7 @@ static int _try_find_driver_path(const char *i2c_dev_name, char *driver_path)
 		output(ERROR, "%s: Driver link path is too long.\n", __func__);
 		return EXIT_FAILURE;
 	}
-	driver_link[len] = '\0'; 
+	driver_link[len] = '\0';
 	output(DEBUG, "device_name: %s, driver_link: %s\n",
 		i2c_dev_name, driver_link);
 
@@ -338,7 +338,7 @@ static int auto_detect_hid_dut(int vid, int pid, char *i2c_dev_name, char *drive
 			_try_find_driver_path(dev_dir_entry->d_name, tmp_driver_path)) {
 			output(DEBUG, "%s: Failed to find driver path for %s.\n", __func__,
 				   dev_dir_entry->d_name);
-			continue; 
+			continue;
 		}
 
 		if (_is_target_hid_device(dev_dir_entry->d_name, vid, pid)) {
@@ -590,7 +590,7 @@ Poll_Status get_report_from_hidraw(ReportData* report, bool apply_timeout,
 		} else {
 			goto GET_REPORT;
 		}
-	default: 
+	default:
 		;
 	}
 
@@ -781,7 +781,7 @@ int start_hidraw_report_reader(HID_Report_ID report_id)
 	report_buffer_create = true;
 
 	if (0 != pthread_create(&report_reader_tid, NULL, _report_reader_thread,
-			(void*) &report_id)) { 
+			(void*) &report_id)) {
 		output(ERROR,
 				"%s: Failed to start thread for reading reports from %s. "
 				"%s [%d]\n",

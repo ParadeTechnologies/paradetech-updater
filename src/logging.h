@@ -2,7 +2,6 @@
  * Copyright (c) Parade Technologies, Ltd. 2023.
  */
 
- 
 #ifndef _LOGGING_H
 #define _LOGGING_H
 
@@ -51,4 +50,4 @@ extern void timestamp_level_set(bool fatal, bool result, bool error,
 extern int verbose_level_get();
 extern void verbose_level_set(int new_level);
 
-#endif 
+#endif
